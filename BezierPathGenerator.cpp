@@ -429,6 +429,17 @@ int main(int, char**)
             {
                 WritePath(numPathPoints);
                 clicked = false;
+            }
+            ImGui::SameLine();
+            static bool clicked2 = false;
+            if (ImGui::Button("Export PATHS.BIN"))
+            {
+                clicked2 = true;
+            }
+            if (clicked2 == true)
+            {
+                ExportPaths();
+                clicked2 = false;
             }            
             ImGui::End();
 
