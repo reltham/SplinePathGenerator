@@ -203,6 +203,8 @@ int CalcPath(float in_p1[2], float in_c1[2], float in_c2[2], float in_p2[2], flo
     return GeneratePath(p1, c1, c2, p2, 0.0001, MinDelta);
 }
 
+char PathText[30 * 100];
+
 void WritePath(int numPathPoints)
 {
     PathPoint Condensed[500];
@@ -220,12 +222,12 @@ void WritePath(int numPathPoints)
             Condensed[condensedIndex] = Path[i];
         }
     }
-    printf("%d\n", condensedIndex);
+    int result = sprintf(PathText, "%d\n", condensedIndex);
     for (int i = 0; i < condensedIndex; i++)
     {
-        printf("%1d, %1d, %3d, %3d, %2d\n", Condensed[i].command, Condensed[i].command_data, Condensed[i].deltaX, Condensed[i].deltaY, Condensed[i].rotation);
+        result += sprintf(&PathText[result], "%1d, %1d, %3d, %3d, %2d\n", Condensed[i].command, Condensed[i].command_data, Condensed[i].deltaX, Condensed[i].deltaY, Condensed[i].rotation);
     }
-    printf("0, 0,   0,   0,  0\n");
+    result += sprintf(&PathText[result], "0, 0,   0,   0,  0\n");
     (void)fflush(stdout);
 }
 
@@ -273,7 +275,7 @@ int main(int, char**)
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
     SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
-    SDL_Window* window = SDL_CreateWindow("Dear ImGui SDL2+OpenGL3 example", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
+    SDL_Window* window = SDL_CreateWindow("Bezier Path Generator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
     if (window == nullptr)
     {
         printf("Error: SDL_CreateWindow(): %s\n", SDL_GetError());
@@ -366,9 +368,12 @@ int main(int, char**)
 
         // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
         if (show_demo_window)
+        {
             ImGui::ShowDemoWindow(&show_demo_window);
+        }
 
         // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
+        if (false)
         {
             static float f = 0.0f;
             static int counter = 0;
@@ -447,6 +452,12 @@ int main(int, char**)
             draw_list->AddPolyline(linePoints, numPathPoints, col, 0, 1);
             draw_list->AddLine(ImVec2(p1[1] * 50.f + x, -p1[0] * 50.f + y), ImVec2(c1[1] * 50.f + x, -c1[0] * 50.f + y), col2, 1);
             draw_list->AddLine(ImVec2(p2[1] * 50.f + x, -p2[0] * 50.f + y), ImVec2(c2[1] * 50.f + x, -c2[0] * 50.f + y), col2, 1);
+            ImGui::End();
+        }
+
+        {
+            ImGui::Begin("Path");
+            ImGui::InputTextMultiline("Path", PathText, IM_ARRAYSIZE(PathText), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 100), ImGuiInputTextFlags_ReadOnly);
             ImGui::End();
         }
 
