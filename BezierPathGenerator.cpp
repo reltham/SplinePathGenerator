@@ -59,7 +59,8 @@ Point Normalize(const Point v)
     return Result;
 }
 
-Point cubic_bezier(Point p0, Point p1, Point p2, Point p3, double t) {
+Point cubic_bezier(Point p0, Point p1, Point p2, Point p3, double t)
+{
     Point result;
     double u = 1 - t;
     double tt = t * t;
@@ -80,7 +81,8 @@ Point cubic_bezier(Point p0, Point p1, Point p2, Point p3, double t) {
     return result;
 }
 
-Point cubic_bezier_derivative(Point p0, Point p1, Point p2, Point p3, double t) {
+Point cubic_bezier_derivative(Point p0, Point p1, Point p2, Point p3, double t)
+{
     Point result;
     double u = 1 - t;
     double uu = u * u;
@@ -101,54 +103,108 @@ struct PathPoint
 {
     int command;
     int command_data;
-    ImVec2 pos;
     int deltaX;
     int deltaY;
     int rotation;
+    ImVec2 pos;
 };
 
-PathPoint Path[500];
-
+PathPoint Path[5000];
+PathPoint CondensedPath[5000];
+ 
 int GeneratePath(const Point p1, const Point c1, const Point c2, const Point p2, const double StepT, const double MinDelta)
 {
-    Point LastPoint;
-    Point TotalDelta;
+    Point LastPoint = {0.0,0.0};
+    Point LastUsedPoint = {0.0,0.0};
+    Point TotalDelta = {0.0,0.0};
+    double PathDirection = 0.0;
     int i = 0;
 
-    for (double t = 0.0f; t <= 1.00001f; t += StepT)
+    for (double t = 0.0; t <= 1.00001; t += StepT)
     {
         const Point CurrentPoint = cubic_bezier(p1, c1, c2, p2, t);
         const Point PathTangent = cubic_bezier_derivative(p1, c1, c2, p2, t);
 
-        double PathDirection = (atan2(PathTangent.y, PathTangent.x) * 3.82f); // DotProduct(Point(0.0f, 1.0f), PathTangent);
-        if (PathDirection > 12.0f)
+        PathDirection = atan2(PathTangent.y, PathTangent.x);
+        PathDirection *= 3.8197186;
+        if (PathDirection < 0.0)
         {
-            PathDirection -= 24.0f;
+             PathDirection += 24.0;
         }
-        if (t == 0.0f)
+        if (t == 0.0)
         {
             LastPoint = CurrentPoint;
+            LastUsedPoint = CurrentPoint;
         }
         const Point Delta = Point(CurrentPoint.x - LastPoint.x, CurrentPoint.y - LastPoint.y);
 
         TotalDelta += Delta;
-        if (Length(TotalDelta) > MinDelta)
+        if (Length(TotalDelta) >= MinDelta)
         {
-            //printf("    1, 1, %3d, %3d, %2d,    %3d, %3d, %3d %3d, %3d\n", static_cast<int>(TotalDelta.y * 50.0f), -static_cast<int>(TotalDelta.x * 50.0f), (static_cast<int>(PathDirection) + 12),
-            //    static_cast<int>(CurrentPoint.x * 1.0f), static_cast<int>(CurrentPoint.y * 1.0f), static_cast<int>(PathTangent.x * 100.0f), static_cast<int>(PathTangent.y * 100.0f), static_cast<int>(PathDirection));
-            if (i < 500)
+            if (i < 5000)
             {
-                Path[i++] = {1, 1,  {static_cast<float>(CurrentPoint.y * 50.0f), -static_cast<float>(CurrentPoint.x * 50.0f)}, static_cast<int>(TotalDelta.y * 50.0f), -static_cast<int>(TotalDelta.x * 50.0f), (static_cast<int>(PathDirection) + 12)};
+                Path[i++] = {1, 1, static_cast<int>(TotalDelta.y), -static_cast<int>(TotalDelta.x), (static_cast<int>(PathDirection - 0.5)),
+                                {static_cast<float>(LastUsedPoint.y), -static_cast<float>(LastUsedPoint.x)}};
             }
-            TotalDelta = { 0.0f, 0.0f };
+            TotalDelta = { 0.0, 0.0 };
+            LastUsedPoint = CurrentPoint;
         }
-
         LastPoint = CurrentPoint;
     }
+    if (Length(TotalDelta) > 0.0)
+    {
+        Path[i++] = {1, 1, static_cast<int>(TotalDelta.y), -static_cast<int>(TotalDelta.x), (static_cast<int>(PathDirection)),
+                            {static_cast<float>(LastPoint.y), -static_cast<float>(LastPoint.x)}};
+    }
+    Path[i]= {0,0,0,0,0,{0.0f,0.0f}};
 
     return i;
 }
 
+int CalcPath(float in_p1[2], float in_c1[2], float in_c2[2], float in_p2[2], const float MinDelta)
+{
+    const Point p1 = Point(in_p1[0], in_p1[1]);
+    const Point c1 = Point(in_c1[0], in_c1[1]);
+    const Point c2 = Point(in_c2[0], in_c2[1]);
+    const Point p2 = Point(in_p2[0], in_p2[1]);
+    return GeneratePath(p1, c1, c2, p2, 0.00001, MinDelta);
+}
+
+int CondensePath(int numPathPoints)
+{
+    CondensedPath[0] = Path[0];
+    int condensedIndex = 0;
+    for (int i = 1; i < numPathPoints; i++)
+    {
+        if ((Path[i].deltaX == CondensedPath[condensedIndex].deltaX) && (Path[i].deltaY == CondensedPath[condensedIndex].deltaY) && (Path[i].rotation == CondensedPath[condensedIndex].rotation))
+        {
+            CondensedPath[condensedIndex].command_data++;
+        }
+        else
+        {
+            condensedIndex++;
+            CondensedPath[condensedIndex] = Path[i];
+        }
+    }
+    condensedIndex++;
+    CondensedPath[condensedIndex] = {0,0,0,0,0, Path[numPathPoints-1].pos};
+    return condensedIndex;
+}
+
+char PathText[30 * 1000];
+
+void WritePath(int numCondensedPoints)
+{
+
+    int result = sprintf(PathText, "%d\n", numCondensedPoints);
+    for (int i = 0; i < numCondensedPoints; i++)
+    {
+        result += sprintf(&PathText[result], "%1d, %2d, %3d, %3d, %2d,\n", CondensedPath[i].command, CondensedPath[i].command_data, CondensedPath[i].deltaX, CondensedPath[i].deltaY, CondensedPath[i].rotation);
+    }
+    result += sprintf(&PathText[result], "0,  0,   0,   0,  0\n");
+    PathText[result] = 0;
+    (void)fflush(stdout);
+}
 
 void ExportPaths()
 {
@@ -157,7 +213,7 @@ void ExportPaths()
     {
         int bytesWritten = fwrite(&num_paths, 2, 1, output);
 
-        unsigned short offset = 0xA800 + 2 + (num_paths * 2);
+        unsigned short offset = 0xB000 + 2 + (num_paths * 2);
         bytesWritten += fwrite(&offset, 2, 1, output);
         offset += sizeof(path0);
         bytesWritten += fwrite(&offset, 2, 1, output);
@@ -180,55 +236,6 @@ void ExportPaths()
         int result = fclose(output);
         printf("Bytes Written: %d  fclose result: %d \n", bytesWritten, result);
     }
-}
-
-int CalcPath(float in_p1[2], float in_c1[2], float in_c2[2], float in_p2[2], float MinDelta)
-{
-    // const Point p1 = Point(0.0, 1.0);
-    // const Point c1 = Point(3.0, 1.0);
-    // const Point c2 = Point(3.0, 4.0);
-    // const Point p2 = Point(6.0, 4.0);
-    //const Point p1 = Point(6.0, 3.0);
-    //const Point c1 = Point(2.0, 5.0);
-    //const Point c2 = Point(-1.0, 1.0);
-    //const Point p2 = Point(4.0, 2.0);
-    //const Point p1 = Point(10.0, 6.0);
-    //const Point c1 = Point(2.0, 9.0);
-    //const Point c2 = Point(-1.0, 0.0);
-    //const Point p2 = Point(6.0, 3.0);
-    const Point p1 = Point(in_p1[0], in_p1[1]);
-    const Point c1 = Point(in_c1[0], in_c1[1]);
-    const Point c2 = Point(in_c2[0], in_c2[1]);
-    const Point p2 = Point(in_p2[0], in_p2[1]);
-    return GeneratePath(p1, c1, c2, p2, 0.0001, MinDelta);
-}
-
-char PathText[30 * 100];
-
-void WritePath(int numPathPoints)
-{
-    PathPoint Condensed[500];
-    Condensed[0] = Path[0];
-    int condensedIndex = 0;
-    for (int i = 1; i < numPathPoints; i++)
-    {
-        if (Path[i].deltaX == Condensed[condensedIndex].deltaX && Path[i].deltaY == Condensed[condensedIndex].deltaY && Path[i].rotation == Condensed[condensedIndex].rotation)
-        {
-            Condensed[condensedIndex].command_data++;
-        }
-        else
-        {
-            condensedIndex++;
-            Condensed[condensedIndex] = Path[i];
-        }
-    }
-    int result = sprintf(PathText, "%d\n", condensedIndex);
-    for (int i = 0; i < condensedIndex; i++)
-    {
-        result += sprintf(&PathText[result], "%1d, %1d, %3d, %3d, %2d\n", Condensed[i].command, Condensed[i].command_data, Condensed[i].deltaX, Condensed[i].deltaY, Condensed[i].rotation);
-    }
-    result += sprintf(&PathText[result], "0, 0,   0,   0,  0\n");
-    (void)fflush(stdout);
 }
 
 // Main code
@@ -407,19 +414,21 @@ int main(int, char**)
         }
 
         {
-            static float p1[2] = {10.0f, 6.0f};
-            static float c1[2] = {2.0f, 9.0f};
-            static float c2[2] = {-1.0f, 0.0f};
-            static float p2[2] = {6.0f, 3.0f};
-            static float MinDelta = 0.25f;
+            static float p1[2] = {500.0, 300.0};
+            static float c1[2] = {100.0, 450.0};
+            static float c2[2] = {-50.0, 0.0};
+            static float p2[2] = {300.0, 150.0};
+            static float MinDelta = 10.0;
             int numPathPoints = CalcPath(p1,c1,c2,p2,MinDelta);
+            int numCondensedPoints = CondensePath(numPathPoints);
             ImGui::Begin("Curve Params");
-            ImGui::DragFloat2("p1", p1, 0.01f, -20.0f, 20.0f);
-            ImGui::DragFloat2("c1", c1, 0.01f, -20.0f, 20.0f);
-            ImGui::DragFloat2("c2", c2, 0.01f, -20.0f, 20.0f);
-            ImGui::DragFloat2("p2", p2, 0.01f, -20.0f, 20.0f);
-            ImGui::DragFloat("MinDelta", &MinDelta, 0.01f, 0.1f, 2.0f);
+            ImGui::DragFloat2("p1", p1, 1.0f, -2000.0f, 2000.0f);
+            ImGui::DragFloat2("c1", c1, 1.0f, -2000.0f, 2000.0f);
+            ImGui::DragFloat2("c2", c2, 1.0f, -2000.0f, 2000.0f);
+            ImGui::DragFloat2("p2", p2, 1.0f, -2000.0f, 2000.0f);
+            ImGui::DragFloat("MinDelta", &MinDelta, 1.0f, 3.00f, 200.0f);
             ImGui::DragInt("num points", &numPathPoints);
+            ImGui::DragInt("num condensed points", &numCondensedPoints);
             static bool clicked = false;
             if (ImGui::Button("Write Path"))
             {
@@ -427,7 +436,7 @@ int main(int, char**)
             }
             if (clicked == true)
             {
-                WritePath(numPathPoints);
+                WritePath(numCondensedPoints);
                 clicked = false;
             }
             ImGui::SameLine();
@@ -443,26 +452,31 @@ int main(int, char**)
             }            
             ImGui::End();
 
+            const ImU32 col = ImColor(1.0f, 1.0f, 0.4f, 1.0f);
+            const ImU32 col2 = ImColor(1.0f, 1.0f, 1.0f, 1.0f);
+            const ImU32 col3 = ImColor(0.0f, 1.0f, 1.0f, 1.0f);
+
             ImGui::Begin("Curve!");
             const ImVec2 p = ImGui::GetCursorScreenPos();
             float x = p.x + 4.0f;
             float y = p.y + 504.0f;
-            ImVec2 linePoints[500];
+            
+            ImDrawList* draw_list = ImGui::GetWindowDrawList();
+            ImVec2 linePoints[5000];
             for (int i = 0; i < numPathPoints; i++)
             {
                 linePoints[i].x = Path[i].pos.x + x;
                 linePoints[i].y = Path[i].pos.y + y;
             }
-            ImDrawList* draw_list = ImGui::GetWindowDrawList();
-            static float sz = 10.0f;
-            //const ImVec2 cp4[4] = { ImVec2(0.0f, 0.0f), ImVec2(sz * 1.3f, sz * 0.3f), ImVec2(sz - sz * 1.3f, sz - sz * 0.3f), ImVec2(sz, sz) };
-            const ImVec2 cp4[4] = { ImVec2(10.0f * sz, 6.0f * sz), ImVec2(2.f * sz,  9.f * sz), ImVec2( -1.f * sz, 0.f * sz), ImVec2(6.f * sz, 3.f * sz) };
-            const ImU32 col = ImColor(1.0f, 1.0f, 0.4f, 1.0f);
-            const ImU32 col2 = ImColor(1.0f, 1.0f, 1.0f, 1.0f);
-            //draw_list->AddBezierCubic(ImVec2(x + cp4[0].x, y + cp4[0].y), ImVec2(x + cp4[1].x, y + cp4[1].y), ImVec2(x + cp4[2].x, y + cp4[2].y), ImVec2(x + cp4[3].x, y + cp4[3].y), col, 1, 0);
-            draw_list->AddPolyline(linePoints, numPathPoints, col, 0, 1);
-            draw_list->AddLine(ImVec2(p1[1] * 50.f + x, -p1[0] * 50.f + y), ImVec2(c1[1] * 50.f + x, -c1[0] * 50.f + y), col2, 1);
-            draw_list->AddLine(ImVec2(p2[1] * 50.f + x, -p2[0] * 50.f + y), ImVec2(c2[1] * 50.f + x, -c2[0] * 50.f + y), col2, 1);
+            draw_list->AddPolyline(linePoints, numPathPoints, col, 0, 2);
+            for (int i = 0; i < numCondensedPoints+1; i++)
+            {
+                linePoints[i].x = CondensedPath[i].pos.x + x;
+                linePoints[i].y = CondensedPath[i].pos.y + y + 100.0f;
+            }
+            draw_list->AddPolyline(linePoints, numCondensedPoints+1, col3, 0, 1);
+            draw_list->AddLine(ImVec2(p1[1] + x, -p1[0] + y), ImVec2(c1[1] + x, -c1[0] + y), col2, 1);
+            draw_list->AddLine(ImVec2(p2[1] + x, -p2[0] + y), ImVec2(c2[1] + x, -c2[0] + y), col2, 1);
             ImGui::End();
         }
 
