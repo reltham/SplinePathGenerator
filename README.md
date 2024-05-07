@@ -1,8 +1,8 @@
-# BezierPathGenerator
- Utility for creating paths (points and directions) along Bezier curves.
+# SplinePathGenerator
+ Utility for creating paths (points and directions) along spline curves.
 
-![image](https://github.com/reltham/BezierPathGenerator/assets/3689101/5bd06203-5b70-4658-bf53-0c4dfbe5d737)
- 
+![image](https://github.com/reltham/SplinePathGenerator/assets/3689101/9a5dbaa1-a0e9-4b55-a562-0e3d55b08d00)
+
  Paths consist of 5 values per entry.
 |command|command_data|deltaX|deltaY|rotation|description|
 |-------|------------|------|------|--------|-----------|
