@@ -20,7 +20,7 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{c66b3302-d874-41fa-9752-e5a784239b18}</ProjectGuid>
-    <RootNamespace>BezierPathGenerator</RootNamespace>
+    <RootNamespace>SplinePathGenerator</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -162,7 +162,7 @@
     <ClCompile Include=".\imgui\imgui_widgets.cpp" />
     <ClCompile Include=".\imgui\backends\imgui_impl_sdl2.cpp" />
     <ClCompile Include=".\imgui\backends\imgui_impl_opengl3.cpp" />
-    <ClCompile Include="BezierPathGenerator.cpp" />
+    <ClCompile Include="SplinePathGenerator.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include=".\imgui\imconfig.h" />

@@ -11,14 +11,8 @@
 #include <SDL_opengl.h>
 #endif
 
-// This example can also compile and run with Emscripten! See 'Makefile.emscripten' for details.
-#ifdef __EMSCRIPTEN__
-#include "../libs/emscripten/emscripten_mainloop_stub.h"
-#endif
-
 //#define _CRT_SECURE_NO_WARNINGS    
 #include <corecrt_math.h>
-//#include <cstdio>
 
 #include "Paths.h"
 
@@ -147,15 +141,15 @@ int GeneratePath(const Point p1, const Point c1, const Point c2, const Point p2,
         {
             Point UsePoint;
             Point UseTangent;
-            if (D1 < D2)
+            if (D1 > D2)
             {
-                UsePoint = LastUsedPoint;
+                UsePoint = LastPoint;
                 UseTangent = LastTangent;
                 TotalDelta -= Delta;
             }
             else
             {
-                UsePoint = LastPoint;
+                UsePoint = CurrentPoint;
                 UseTangent = PathTangent;
             }
 
@@ -171,7 +165,7 @@ int GeneratePath(const Point p1, const Point c1, const Point c2, const Point p2,
                 Path[i++] = {1, 1, static_cast<int>(TotalDelta.y), -static_cast<int>(TotalDelta.x), (static_cast<int>(PathDirection - 0.5)),
                                 {static_cast<float>(LastUsedPoint.y), -static_cast<float>(LastUsedPoint.x)}};
             }
-            if (D1 < D2)
+            if (D1 > D2)
             {
                 TotalDelta = Delta;
             }
@@ -189,7 +183,7 @@ int GeneratePath(const Point p1, const Point c1, const Point c2, const Point p2,
         Path[i++] = {1, 1, static_cast<int>(TotalDelta.y), -static_cast<int>(TotalDelta.x), (static_cast<int>(PathDirection)),
                             {static_cast<float>(LastPoint.y), -static_cast<float>(LastPoint.x)}};
     }
-    Path[i]= {0,0,0,0,0,{0.0f,0.0f}};
+    Path[i]= {0,0,0,0,0,{0.0, 0.0}};
 
     return i;
 }
@@ -315,7 +309,7 @@ int main(int, char**)
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
     SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
-    SDL_Window* window = SDL_CreateWindow("Bezier Path Generator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
+    SDL_Window* window = SDL_CreateWindow("Spline Path Generator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
     if (window == nullptr)
     {
         printf("Error: SDL_CreateWindow(): %s\n", SDL_GetError());
@@ -501,13 +495,22 @@ int main(int, char**)
                 linePoints[i].x = Path[i].pos.x + x;
                 linePoints[i].y = Path[i].pos.y + y;
             }
-            draw_list->AddPolyline(linePoints, numPathPoints, col, 0, 2);
-            for (int i = 0; i < numCondensedPoints+1; i++)
+            draw_list->AddPolyline(linePoints, numPathPoints, col, 0, 1);
+            for (int i = 0; i < numCondensedPoints; i++)
             {
                 linePoints[i].x = CondensedPath[i].pos.x + x;
                 linePoints[i].y = CondensedPath[i].pos.y + y + 100.0f;
             }
-            draw_list->AddPolyline(linePoints, numCondensedPoints+1, col3, 0, 1);
+            if (CondensedPath[numCondensedPoints-1].command_data > 1)
+            {
+                linePoints[numCondensedPoints].x = CondensedPath[numCondensedPoints].pos.x + x;
+                linePoints[numCondensedPoints].y = CondensedPath[numCondensedPoints].pos.y + y + 100.0f;
+                draw_list->AddPolyline(linePoints, numCondensedPoints+1, col3, 0, 1);
+            }
+            else
+            {
+                draw_list->AddPolyline(linePoints, numCondensedPoints, col3, 0, 1);
+            }
             draw_list->AddLine(ImVec2(p1[1] + x, -p1[0] + y), ImVec2(c1[1] + x, -c1[0] + y), col2, 1);
             draw_list->AddLine(ImVec2(p2[1] + x, -p2[0] + y), ImVec2(c2[1] + x, -c2[0] + y), col2, 1);
             ImGui::End();
