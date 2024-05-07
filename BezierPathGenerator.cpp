@@ -40,6 +40,12 @@ struct Point
         y += other.y;
         return { x,y };
     }
+    Point operator -= (const Point& other)
+    {
+        x -= other.x;
+        y -= other.y;
+        return { x,y };
+    }
 };
 
 double Length(const Point v)
@@ -115,6 +121,7 @@ PathPoint CondensedPath[5000];
 int GeneratePath(const Point p1, const Point c1, const Point c2, const Point p2, const double StepT, const double MinDelta)
 {
     Point LastPoint = {0.0,0.0};
+    Point LastTangent = {0.0,0.0};
     Point LastUsedPoint = {0.0,0.0};
     Point TotalDelta = {0.0,0.0};
     double PathDirection = 0.0;
@@ -125,31 +132,57 @@ int GeneratePath(const Point p1, const Point c1, const Point c2, const Point p2,
         const Point CurrentPoint = cubic_bezier(p1, c1, c2, p2, t);
         const Point PathTangent = cubic_bezier_derivative(p1, c1, c2, p2, t);
 
-        PathDirection = atan2(PathTangent.y, PathTangent.x);
-        PathDirection *= 3.8197186;
-        if (PathDirection < 0.0)
-        {
-             PathDirection += 24.0;
-        }
         if (t == 0.0)
         {
             LastPoint = CurrentPoint;
             LastUsedPoint = CurrentPoint;
+            LastTangent = PathTangent;
         }
         const Point Delta = Point(CurrentPoint.x - LastPoint.x, CurrentPoint.y - LastPoint.y);
 
+        double D1 = MinDelta - Length(TotalDelta);
         TotalDelta += Delta;
+        double D2 = Length(TotalDelta) - MinDelta; 
         if (Length(TotalDelta) >= MinDelta)
         {
+            Point UsePoint;
+            Point UseTangent;
+            if (D1 < D2)
+            {
+                UsePoint = LastUsedPoint;
+                UseTangent = LastTangent;
+                TotalDelta -= Delta;
+            }
+            else
+            {
+                UsePoint = LastPoint;
+                UseTangent = PathTangent;
+            }
+
+            PathDirection = atan2(UseTangent.y, UseTangent.x);
+            PathDirection *= 3.8197186;
+            if (PathDirection < 0.0)
+            {
+                PathDirection += 24.0;
+            }
+
             if (i < 5000)
             {
                 Path[i++] = {1, 1, static_cast<int>(TotalDelta.y), -static_cast<int>(TotalDelta.x), (static_cast<int>(PathDirection - 0.5)),
                                 {static_cast<float>(LastUsedPoint.y), -static_cast<float>(LastUsedPoint.x)}};
             }
-            TotalDelta = { 0.0, 0.0 };
-            LastUsedPoint = CurrentPoint;
+            if (D1 < D2)
+            {
+                TotalDelta = Delta;
+            }
+            else
+            {
+                TotalDelta = { 0.0, 0.0 };
+            }
+            LastUsedPoint = UsePoint;
         }
         LastPoint = CurrentPoint;
+        LastTangent = PathTangent;
     }
     if (Length(TotalDelta) > 0.0)
     {
