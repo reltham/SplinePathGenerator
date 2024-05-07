@@ -1,5 +1,6 @@
 # SplinePathGenerator
  Utility for creating paths (points and directions) along spline curves.
+ 
  I renamed this because I intend to change it to use Cattmull-Rom Splines and support more control points to get fancier paths all in one go.
 
 ![image](https://github.com/reltham/SplinePathGenerator/assets/3689101/9a5dbaa1-a0e9-4b55-a562-0e3d55b08d00)
