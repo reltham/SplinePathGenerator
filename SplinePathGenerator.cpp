@@ -14,17 +14,19 @@
 //#define _CRT_SECURE_NO_WARNINGS    
 #include <corecrt_math.h>
 
+#include "imgui_internal.h"
 #include "Paths.h"
+#include "imfilebrowser.h"
 
 struct Point
 {
-    double x, y;
+    float x, y;
 
     Point()
         : x(0.0), y(0.0)
     {}
 
-    Point(const double NewX, const double NewY)
+    Point(const float NewX, const float NewY)
         : x(NewX), y(NewY)
     {}
 
@@ -42,16 +44,16 @@ struct Point
     }
 };
 
-double Length(const Point v)
+float Length(const Point v)
 {
-    return sqrt(v.x * v.x + v.y * v.y);
+    return sqrtf(v.x * v.x + v.y * v.y);
 }
 
 Point Normalize(const Point v)
 {
     Point Result;
 
-    const double ThisLength = Length(v);
+    const float ThisLength = Length(v);
 
     Result.x = v.x / ThisLength;
     Result.y = v.y / ThisLength;
@@ -59,42 +61,37 @@ Point Normalize(const Point v)
     return Result;
 }
 
-Point cubic_bezier(Point p0, Point p1, Point p2, Point p3, double t)
+// Function to calculate the Catmull-Rom interpolation
+Point catmull_rom(const ImVec2 p0, const ImVec2 p1, const ImVec2 p2, const ImVec2 p3, const float t)
 {
+    const float t2 = t * t;
+    const float t3 = t2 * t;
+
     Point result;
-    double u = 1 - t;
-    double tt = t * t;
-    double uu = u * u;
-    double uuu = uu * u;
-    double ttt = tt * t;
-
-    result.x = uuu * p0.x; //beginning influence
-    result.x += 3 * uu * t * p1.x; // first middle point influence
-    result.x += 3 * u * tt * p2.x; // second middle point influence
-    result.x += ttt * p3.x; // ending influence
-
-    result.y = uuu * p0.y;
-    result.y += 3 * uu * t * p1.y;
-    result.y += 3 * u * tt * p2.y;
-    result.y += ttt * p3.y;
-
+    result.x = 0.5f * ((2 * p1.x) +
+                      (-p0.x + p2.x) * t +
+                      (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+                      (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
+    result.y = 0.5f * ((2 * p1.y) +
+                      (-p0.y + p2.y) * t +
+                      (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+                      (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
+    
     return result;
 }
 
-Point cubic_bezier_derivative(Point p0, Point p1, Point p2, Point p3, double t)
+// Function to calculate the first derivative of the Catmull-Rom spline
+Point catmull_rom_derivative(const ImVec2 p0, const ImVec2 p1, const ImVec2 p2, const ImVec2 p3, const float t)
 {
+    const float t2 = t * t;
+
     Point result;
-    double u = 1 - t;
-    double uu = u * u;
-    double tt = t * t;
-
-    result.x = 3 * uu * (p1.x - p0.x) +
-        6 * u * t * (p2.x - p1.x) +
-        3 * tt * (p3.x - p2.x);
-
-    result.y = 3 * uu * (p1.y - p0.y) +
-        6 * u * t * (p2.y - p1.y) +
-        3 * tt * (p3.y - p2.y);
+    result.x = 0.5f * ((-p0.x + p2.x) +
+                      2 * (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t +
+                      3 * (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t2);
+    result.y = 0.5f * ((-p0.y + p2.y) +
+                      2 * (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t +
+                      3 * (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t2);
 
     return result;
 }
@@ -112,89 +109,88 @@ struct PathPoint
 PathPoint Path[5000];
 PathPoint CondensedPath[5000];
  
-int GeneratePath(const Point p1, const Point c1, const Point c2, const Point p2, const double StepT, const double MinDelta)
+int GeneratePath(ImVector<ImVec2>& points, const int numPoints, const float StepT, const float MinDelta)
 {
-    Point LastPoint = {0.0,0.0};
-    Point LastTangent = {0.0,0.0};
-    Point LastUsedPoint = {0.0,0.0};
-    Point TotalDelta = {0.0,0.0};
-    double PathDirection = 0.0;
-    int i = 0;
+    Point LastPoint = {0.0f,0.0f};
+    Point LastTangent = {0.0f,0.0f};
+    Point LastUsedPoint = {0.0f,0.0f};
+    Point TotalDelta = {0.0f,0.0f};
+    float PathDirection = 0.0f;
+    int n = 0;
 
-    for (double t = 0.0; t <= 1.00001; t += StepT)
+    for (int i = 1; i < numPoints - 2; i++)
     {
-        const Point CurrentPoint = cubic_bezier(p1, c1, c2, p2, t);
-        const Point PathTangent = cubic_bezier_derivative(p1, c1, c2, p2, t);
-
-        if (t == 0.0)
+        for (float t = 0.0f; t <= 1.0000f; t += StepT)
         {
+            Point CurrentPoint = catmull_rom(points[i-1], points[i], points[i+1], points[i+2], t);
+            Point PathTangent = catmull_rom_derivative(points[i-1], points[i], points[i+1], points[i+2], t);
+
+            if (t == 0.0f)
+            {
+                LastPoint = CurrentPoint;
+                LastUsedPoint = CurrentPoint;
+                LastTangent = PathTangent;
+            }
+            const Point Delta = Point(CurrentPoint.x - LastPoint.x, CurrentPoint.y - LastPoint.y);
+
+            const float D1 = MinDelta - Length(TotalDelta);
+            TotalDelta += Delta;
+            const float D2 = Length(TotalDelta) - MinDelta; 
+            if (Length(TotalDelta) >= MinDelta)
+            {
+                Point UsePoint;
+                Point UseTangent;
+                if (D1 > D2)
+                {
+                    UsePoint = LastPoint;
+                    UseTangent = LastTangent;
+                    TotalDelta -= Delta;
+                }
+                else
+                {
+                    UsePoint = CurrentPoint;
+                    UseTangent = PathTangent;
+                }
+
+                PathDirection = atan2f(UseTangent.y, UseTangent.x);
+                PathDirection *= 3.8197186f;
+                PathDirection += 6.0f;
+                if (PathDirection < 0.0f)
+                {
+                    PathDirection += 24.0f;
+                }
+                if (PathDirection > 24.0f)
+                {
+                    PathDirection -= 24.0f;
+                }
+
+                if (n < 5000)
+                {
+                    Path[n++] = {1, 1, static_cast<int>(TotalDelta.x), static_cast<int>(TotalDelta.y), (static_cast<int>(PathDirection - 0.5f)),
+                                    {static_cast<float>(LastUsedPoint.x), static_cast<float>(LastUsedPoint.y)}};
+                }
+                if (D1 > D2)
+                {
+                    TotalDelta = Delta;
+                }
+                else
+                {
+                    TotalDelta = { 0.0f, 0.0f };
+                }
+                LastUsedPoint = UsePoint;
+            }
             LastPoint = CurrentPoint;
-            LastUsedPoint = CurrentPoint;
             LastTangent = PathTangent;
         }
-        const Point Delta = Point(CurrentPoint.x - LastPoint.x, CurrentPoint.y - LastPoint.y);
-
-        double D1 = MinDelta - Length(TotalDelta);
-        TotalDelta += Delta;
-        double D2 = Length(TotalDelta) - MinDelta; 
-        if (Length(TotalDelta) >= MinDelta)
-        {
-            Point UsePoint;
-            Point UseTangent;
-            if (D1 > D2)
-            {
-                UsePoint = LastPoint;
-                UseTangent = LastTangent;
-                TotalDelta -= Delta;
-            }
-            else
-            {
-                UsePoint = CurrentPoint;
-                UseTangent = PathTangent;
-            }
-
-            PathDirection = atan2(UseTangent.y, UseTangent.x);
-            PathDirection *= 3.8197186;
-            if (PathDirection < 0.0)
-            {
-                PathDirection += 24.0;
-            }
-
-            if (i < 5000)
-            {
-                Path[i++] = {1, 1, static_cast<int>(TotalDelta.y), -static_cast<int>(TotalDelta.x), (static_cast<int>(PathDirection - 0.5)),
-                                {static_cast<float>(LastUsedPoint.y), -static_cast<float>(LastUsedPoint.x)}};
-            }
-            if (D1 > D2)
-            {
-                TotalDelta = Delta;
-            }
-            else
-            {
-                TotalDelta = { 0.0, 0.0 };
-            }
-            LastUsedPoint = UsePoint;
-        }
-        LastPoint = CurrentPoint;
-        LastTangent = PathTangent;
     }
-    if (Length(TotalDelta) > 0.0)
+    if (Length(TotalDelta) > 0.0f)
     {
-        Path[i++] = {1, 1, static_cast<int>(TotalDelta.y), -static_cast<int>(TotalDelta.x), (static_cast<int>(PathDirection)),
-                            {static_cast<float>(LastPoint.y), -static_cast<float>(LastPoint.x)}};
+        Path[n++] = {1, 1, static_cast<int>(TotalDelta.x), static_cast<int>(TotalDelta.y), (static_cast<int>(PathDirection)),
+                            {static_cast<float>(LastPoint.x), static_cast<float>(LastPoint.y)}};
     }
-    Path[i]= {0,0,0,0,0,{0.0, 0.0}};
+    Path[n]= {0,0,0,0,0,{0.0f, 0.0f}};
 
-    return i;
-}
-
-int CalcPath(float in_p1[2], float in_c1[2], float in_c2[2], float in_p2[2], const float MinDelta)
-{
-    const Point p1 = Point(in_p1[0], in_p1[1]);
-    const Point c1 = Point(in_c1[0], in_c1[1]);
-    const Point c2 = Point(in_c2[0], in_c2[1]);
-    const Point p2 = Point(in_p2[0], in_p2[1]);
-    return GeneratePath(p1, c1, c2, p2, 0.00001, MinDelta);
+    return n;
 }
 
 int CondensePath(int numPathPoints)
@@ -238,7 +234,7 @@ void ExportPaths()
     FILE* output = fopen("PATHS.BIN", "wb");
     if (output != nullptr)
     {
-        int bytesWritten = fwrite(&num_paths, 2, 1, output);
+        auto bytesWritten = fwrite(&num_paths, 2, 1, output);
 
         unsigned short offset = 0xB000 + 2 + (num_paths * 2);
         bytesWritten += fwrite(&offset, 2, 1, output);
@@ -261,8 +257,35 @@ void ExportPaths()
         bytesWritten += fwrite(&path5, 1, sizeof(path5), output);
 
         int result = fclose(output);
-        printf("Bytes Written: %d  fclose result: %d \n", bytesWritten, result);
+        printf("Bytes Written: %zd  fclose result: %d \n", bytesWritten, result);
     }
+}
+
+void SavePoints(const ImVector<ImVec2>& points, const char* filename)
+{
+    FILE *f = fopen(filename, "wb");
+    if (!f)
+    {
+        return;
+    }
+    fwrite( &points.Size, sizeof(points.Size), 1, f);
+    fwrite(points.begin(), sizeof(float), points.Size * 2, f);
+    fclose(f);
+    
+}
+void LoadPoints(ImVector<ImVec2>& points, const char* filename)
+{
+    FILE *f = fopen(filename, "rb");
+    if (!f)
+    {
+        return;
+    }
+    int temp;
+    fread( &temp, sizeof(int), 1, f);
+    //points.reserve_discard(temp);
+    points.resize(temp);
+    fread(points.begin(), sizeof(float), temp * 2, f);
+    fclose(f);
 }
 
 // Main code
@@ -366,7 +389,6 @@ int main(int, char**)
 
     // Our state
     bool show_demo_window = false;
-    bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     // Main loop
@@ -380,6 +402,10 @@ int main(int, char**)
     while (!done)
 #endif
     {
+        const ImU32 col = ImColor(0.4f, 0.4f, 0.4f, 1.0f);
+        const ImU32 col2 = ImColor(1.0f, 1.0f, 1.0f, 1.0f);
+        const ImU32 col3 = ImColor(0.0f, 1.0f, 1.0f, 1.0f);
+
         // Poll and handle events (inputs, window resize, etc.)
         // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
         // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
@@ -406,56 +432,26 @@ int main(int, char**)
             ImGui::ShowDemoWindow(&show_demo_window);
         }
 
-        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
-        if (false)
         {
-            static float f = 0.0f;
-            static int counter = 0;
-
-            ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-            ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-            ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-            ImGui::Checkbox("Another Window", &show_another_window);
-
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-            if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-                counter++;
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
-
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-            ImGui::End();
-        }
-
-        // 3. Show another simple window.
-        if (show_another_window)
-        {
-            ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            ImGui::Text("Hello from another window!");
-            if (ImGui::Button("Close Me"))
-                show_another_window = false;
+            ImGui::Begin("Path");
+            ImGui::InputTextMultiline("Path", PathText, IM_ARRAYSIZE(PathText), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 100), ImGuiInputTextFlags_ReadOnly);
             ImGui::End();
         }
 
         {
-            static float p1[2] = {500.0, 300.0};
-            static float c1[2] = {100.0, 450.0};
-            static float c2[2] = {-50.0, 0.0};
-            static float p2[2] = {300.0, 150.0};
             static float MinDelta = 10.0;
-            int numPathPoints = CalcPath(p1,c1,c2,p2,MinDelta);
-            int numCondensedPoints = CondensePath(numPathPoints);
+            int numPathPoints;
+            int numCondensedPoints = 0;
+            static ImVector<ImVec2> points;
             ImGui::Begin("Curve Params");
-            ImGui::DragFloat2("p1", p1, 1.0f, -2000.0f, 2000.0f);
-            ImGui::DragFloat2("c1", c1, 1.0f, -2000.0f, 2000.0f);
-            ImGui::DragFloat2("c2", c2, 1.0f, -2000.0f, 2000.0f);
-            ImGui::DragFloat2("p2", p2, 1.0f, -2000.0f, 2000.0f);
             ImGui::DragFloat("MinDelta", &MinDelta, 1.0f, 3.00f, 200.0f);
-            ImGui::DragInt("num points", &numPathPoints);
-            ImGui::DragInt("num condensed points", &numCondensedPoints);
+            if (points.size() > 3)
+            {
+                numPathPoints = GeneratePath(points, points.size(), 0.0001f, MinDelta);
+                ImGui::Text("num points: %d", numPathPoints);
+                numCondensedPoints = CondensePath(numPathPoints);
+                ImGui::Text("num condensed points: %d", numCondensedPoints);
+            }
             static bool clicked = false;
             if (ImGui::Button("Write Path"))
             {
@@ -476,49 +472,231 @@ int main(int, char**)
             {
                 ExportPaths();
                 clicked2 = false;
-            }            
+            }
+
+            static bool bLoad = false;
+            static bool bSave = false;
+            static bool clicked3 = false;
+            if (ImGui::Button("Save Points"))
+            {
+                clicked3 = true;
+            }
+            if (clicked3 == true)
+            {
+                bSave = true;
+                clicked3 = false;
+            }
+            ImGui::SameLine();
+            static bool clicked4 = false;
+            if (ImGui::Button("Load Points"))
+            {
+                clicked4 = true;
+            }
+            if (clicked4 == true)
+            {
+                bLoad = true;
+                clicked4 = false;
+            }
+
+            static ImGui::FileBrowser* fileDialog = nullptr;
+            if (bLoad || bSave)
+            {
+                if (fileDialog == nullptr)
+                {
+                    // create a file browser instance
+                    fileDialog = new ImGui::FileBrowser(bLoad ? ImGuiFileBrowserFlags_EnterNewFilename : ImGuiFileBrowserFlags_EnterNewFilename | ImGuiFileBrowserFlags_CreateNewDir);
+    
+                    // (optional) set browser properties
+                    fileDialog->SetTitle(bLoad ? "Load" : "Save");
+                    fileDialog->SetTypeFilters({ ".spg" });
+                    fileDialog->Open();
+                }
+
+                if (fileDialog != nullptr)
+                {
+                    fileDialog->Display();
+                    if(fileDialog->HasSelected())
+                    {
+                        if (bLoad)
+                        {
+                            LoadPoints(points, fileDialog->GetSelected().string().c_str());
+                        }
+                        else
+                        {
+                            SavePoints(points, fileDialog->GetSelected().string().c_str());
+                        }
+                        fileDialog->Close();
+                    }
+                }
+                if (fileDialog->IsOpened() == false)
+                {
+                    fileDialog->ClearSelected();
+                    bLoad = bSave = false;
+                    delete(fileDialog);
+                    fileDialog = nullptr;
+                }
+            }
+
             ImGui::End();
+            ImGui::Begin("Canvas");
+            static ImVec2 scrolling(0.0f, 0.0f);
+            static bool opt_enable_grid = true;
+            static bool opt_enable_context_menu = true;
+            static bool adding_line = false;
+            static bool moving_point = false;
+            static bool context_open = false;
 
-            const ImU32 col = ImColor(1.0f, 1.0f, 0.4f, 1.0f);
-            const ImU32 col2 = ImColor(1.0f, 1.0f, 1.0f, 1.0f);
-            const ImU32 col3 = ImColor(0.0f, 1.0f, 1.0f, 1.0f);
+            // Using InvisibleButton() as a convenience 1) it will advance the layout cursor and 2) allows us to use IsItemHovered()/IsItemActive()
+            ImVec2 canvas_p0 = ImGui::GetCursorScreenPos();      // ImDrawList API uses screen coordinates!
+            ImVec2 canvas_sz = ImGui::GetContentRegionAvail();   // Resize canvas to what's available
+            if (canvas_sz.x < 50.0f) canvas_sz.x = 50.0f;
+            if (canvas_sz.y < 50.0f) canvas_sz.y = 50.0f;
+            ImVec2 canvas_p1 = ImVec2(canvas_p0.x + canvas_sz.x, canvas_p0.y + canvas_sz.y);
 
-            ImGui::Begin("Curve!");
-            const ImVec2 p = ImGui::GetCursorScreenPos();
-            float x = p.x + 4.0f;
-            float y = p.y + 504.0f;
-            
+            // Draw border and background color
             ImDrawList* draw_list = ImGui::GetWindowDrawList();
-            ImVec2 linePoints[5000];
-            for (int i = 0; i < numPathPoints; i++)
-            {
-                linePoints[i].x = Path[i].pos.x + x;
-                linePoints[i].y = Path[i].pos.y + y;
-            }
-            draw_list->AddPolyline(linePoints, numPathPoints, col, 0, 1);
-            for (int i = 0; i < numCondensedPoints; i++)
-            {
-                linePoints[i].x = CondensedPath[i].pos.x + x;
-                linePoints[i].y = CondensedPath[i].pos.y + y + 100.0f;
-            }
-            if (CondensedPath[numCondensedPoints-1].command_data > 1)
-            {
-                linePoints[numCondensedPoints].x = CondensedPath[numCondensedPoints].pos.x + x;
-                linePoints[numCondensedPoints].y = CondensedPath[numCondensedPoints].pos.y + y + 100.0f;
-                draw_list->AddPolyline(linePoints, numCondensedPoints+1, col3, 0, 1);
-            }
-            else
-            {
-                draw_list->AddPolyline(linePoints, numCondensedPoints, col3, 0, 1);
-            }
-            draw_list->AddLine(ImVec2(p1[1] + x, -p1[0] + y), ImVec2(c1[1] + x, -c1[0] + y), col2, 1);
-            draw_list->AddLine(ImVec2(p2[1] + x, -p2[0] + y), ImVec2(c2[1] + x, -c2[0] + y), col2, 1);
-            ImGui::End();
-        }
+            draw_list->AddRectFilled(canvas_p0, canvas_p1, IM_COL32(50, 50, 50, 255));
+            draw_list->AddRect(canvas_p0, canvas_p1, IM_COL32(255, 255, 255, 255));
 
-        {
-            ImGui::Begin("Path");
-            ImGui::InputTextMultiline("Path", PathText, IM_ARRAYSIZE(PathText), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 100), ImGuiInputTextFlags_ReadOnly);
+            // This will catch our interactions
+            ImGui::InvisibleButton("canvas", canvas_sz, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+            const bool is_hovered = ImGui::IsItemHovered(); // Hovered
+            const bool is_active = ImGui::IsItemActive();   // Held
+            const ImVec2 origin(canvas_p0.x + scrolling.x, canvas_p0.y + scrolling.y); // Lock scrolled origin
+            const ImVec2 mouse_pos_in_canvas(io.MousePos.x - origin.x, io.MousePos.y - origin.y);
+
+            static int hovered_point = -1;
+            if (moving_point == false && context_open == false)
+            {
+                hovered_point = -1;
+                int curr_point = 0;
+                for (const ImVec2& point : points)
+                {
+                    if ((fabsf(point.x - mouse_pos_in_canvas.x) < 4.0f) && (fabsf(point.y - mouse_pos_in_canvas.y) < 4.0f))
+                    {
+                        hovered_point = curr_point;
+                    }
+                    curr_point++;
+                }
+            }
+
+            // Add first and second point
+            if (is_hovered && !adding_line && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            {
+                if (hovered_point != -1)
+                {
+                    moving_point = true;
+                }
+                else
+                {
+                    if (points.empty())
+                    {
+                        points.push_back(mouse_pos_in_canvas);
+                    }
+                    points.push_back(mouse_pos_in_canvas);
+                    adding_line = true;
+                }
+            }
+            if (moving_point)
+            {
+                points[hovered_point] = mouse_pos_in_canvas;
+                if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                {
+                    moving_point = false;
+                }
+            }
+            if (adding_line)
+            {
+                points.back() = mouse_pos_in_canvas;
+                if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                {
+                    adding_line = false;
+                }
+            }
+
+            // Pan (we use a zero mouse threshold when there's no context menu)
+            // You may decide to make that threshold dynamic based on whether the mouse is hovering something etc.
+            const float mouse_threshold_for_pan = opt_enable_context_menu ? -1.0f : 0.0f;
+            if (is_active && ImGui::IsMouseDragging(ImGuiMouseButton_Right, mouse_threshold_for_pan))
+            {
+                scrolling.x += io.MouseDelta.x;
+                scrolling.y += io.MouseDelta.y;
+            }
+
+            // Context menu (under default mouse threshold)
+            ImVec2 drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
+            if (opt_enable_context_menu && drag_delta.x == 0.0f && drag_delta.y == 0.0f)
+            {
+                ImGui::OpenPopupOnItemClick("context", ImGuiPopupFlags_MouseButtonRight);
+            }
+            if (ImGui::BeginPopup("context"))
+            {
+                context_open = true;
+                if (adding_line)
+                {
+                    points.resize(points.size() - 1);
+                }
+                adding_line = false;
+                moving_point = false;
+                if (ImGui::MenuItem("Remove this", NULL, false, hovered_point != -1 && points.Size > hovered_point)) { points.erase(&points[hovered_point]); }
+                if (ImGui::MenuItem("Remove one", NULL, false, points.Size > 0)) { points.resize(points.size() - 1); }
+                if (ImGui::MenuItem("Remove all", NULL, false, points.Size > 0)) { points.clear(); }
+                ImGui::EndPopup();
+                if (ImGui::IsPopupOpen("context") == false)
+                {
+                    context_open = false;
+                }
+            }
+
+            // Draw grid + all lines in the canvas
+            draw_list->PushClipRect(canvas_p0, canvas_p1, true);
+            if (opt_enable_grid)
+            {
+                const float GRID_STEP = 64.0f;
+                for (float x = fmodf(scrolling.x, GRID_STEP); x < canvas_sz.x; x += GRID_STEP)
+                {
+                    draw_list->AddLine(ImVec2(canvas_p0.x + x, canvas_p0.y), ImVec2(canvas_p0.x + x, canvas_p1.y), IM_COL32(200, 200, 200, 40));
+                }
+                for (float y = fmodf(scrolling.y, GRID_STEP); y < canvas_sz.y; y += GRID_STEP)
+                {
+                    draw_list->AddLine(ImVec2(canvas_p0.x, canvas_p0.y + y), ImVec2(canvas_p1.x, canvas_p0.y + y), IM_COL32(200, 200, 200, 40));
+                }
+            }
+
+            for (int n = 0; n < points.Size-1; n += 1)
+            {
+                draw_list->AddLine(ImVec2(origin.x + points[n].x, origin.y + points[n].y), ImVec2(origin.x + points[n + 1].x, origin.y + points[n + 1].y), col, 2.0f);
+            }
+
+            if (points.size() > 3)
+            {
+                ImVector<ImVec2> linePoints;
+                for (int i = 0; i < numCondensedPoints; i++)
+                {
+                    linePoints.push_back({CondensedPath[i].pos.x + origin.x, CondensedPath[i].pos.y + origin.y});
+                }
+                if (CondensedPath[numCondensedPoints-1].command_data > 1)
+                {
+                    linePoints.push_back({CondensedPath[numCondensedPoints].pos.x + origin.x, CondensedPath[numCondensedPoints].pos.y + origin.y});
+                }
+                draw_list->AddPolyline(linePoints.begin(), linePoints.size(), col3, 0, 1);
+                int curr_point = 0;
+                for (const auto& point : points)
+                {
+                    ImVec2 new_point;
+                    new_point.x = point.x + origin.x;
+                    new_point.y = point.y + origin.y;
+
+                    float thickness = 1.0f;
+                    if (hovered_point == curr_point)
+                    {
+                        thickness = 3.0f;
+                    }
+                    draw_list->AddCircle(new_point, 3.0f, col2, 16, thickness);
+                    curr_point++;
+                }
+            }
+            draw_list->PopClipRect();
             ImGui::End();
         }
 
