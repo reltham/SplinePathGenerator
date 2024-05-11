@@ -1,10 +1,11 @@
 # SplinePathGenerator
- Utility for creating paths (points and directions) along spline curves.
+ Utility for creating paths (points and directions) along Catmull-Rom spline curves.
  
- I renamed this because I intend to change it to use Cattmull-Rom Splines and support more control points to get fancier paths all in one go.
+ Use the mouse to place and move points. Initial two points are created by clicking and dragging, subsequent points are just a single click where you want it.
+ Click and drag existing points to move them, and right click for a context menu to remove the hovered point, the last point or all points.
 
-![image](https://github.com/reltham/SplinePathGenerator/assets/3689101/9a5dbaa1-a0e9-4b55-a562-0e3d55b08d00)
-
+ ![image](https://github.com/reltham/SplinePathGenerator/assets/3689101/eed7c906-38f0-4f0e-b88b-82471cbf38cc)
+ 
  Paths consist of 5 values per entry.
 |command|command_data|deltaX|deltaY|rotation|description|
 |-------|------------|------|------|--------|-----------|
