@@ -189,6 +189,37 @@ char path5[] = {
     0,  0,   0,   0,  0
 };
 
-unsigned short num_paths = 6;
+inline unsigned short num_paths = 6;
 //char* paths[] = { &path2[0], &path3[0], &path1[0], &path4[0] };
 
+inline void ExportPaths()
+{
+    FILE* output = fopen("PATHS.BIN", "wb");
+    if (output != nullptr)
+    {
+        auto bytesWritten = fwrite(&num_paths, 2, 1, output);
+
+        unsigned short offset = 0xB000 + 2 + (num_paths * 2);
+        bytesWritten += fwrite(&offset, 2, 1, output);
+        offset += sizeof(path0);
+        bytesWritten += fwrite(&offset, 2, 1, output);
+        offset += sizeof(path1);
+        bytesWritten += fwrite(&offset, 2, 1, output);
+        offset += sizeof(path2);
+        bytesWritten += fwrite(&offset, 2, 1, output);
+        offset += sizeof(path3);
+        bytesWritten += fwrite(&offset, 2, 1, output);
+        offset += sizeof(path4);
+        bytesWritten += fwrite(&offset, 2, 1, output);
+
+        bytesWritten += fwrite(&path0, 1, sizeof(path0), output);
+        bytesWritten += fwrite(&path1, 1, sizeof(path1), output);
+        bytesWritten += fwrite(&path2, 1, sizeof(path2), output);
+        bytesWritten += fwrite(&path3, 1, sizeof(path3), output);
+        bytesWritten += fwrite(&path4, 1, sizeof(path4), output);
+        bytesWritten += fwrite(&path5, 1, sizeof(path5), output);
+
+        int result = fclose(output);
+        printf("Bytes Written: %zd  fclose result: %d \n", bytesWritten, result);
+    }
+}

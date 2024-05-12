@@ -219,46 +219,15 @@ char PathText[30 * 1000];
 void WritePath(int numCondensedPoints)
 {
 
-    int result = sprintf(PathText, "%d\n", numCondensedPoints);
+    int result = sprintf(PathText, "char path[%d] =\n{\n", numCondensedPoints);
     for (int i = 0; i < numCondensedPoints; i++)
     {
-        result += sprintf(&PathText[result], "%1d, %2d, %3d, %3d, %2d,\n", CondensedPath[i].command, CondensedPath[i].command_data, CondensedPath[i].deltaX, CondensedPath[i].deltaY, CondensedPath[i].rotation);
+        result += sprintf(&PathText[result], "    %1d, %2d, %3d, %3d, %2d,\n", CondensedPath[i].command, CondensedPath[i].command_data, CondensedPath[i].deltaX, CondensedPath[i].deltaY, CondensedPath[i].rotation);
     }
-    result += sprintf(&PathText[result], "0,  0,   0,   0,  0\n");
+    result += sprintf(&PathText[result], "    0,  0,   0,   0,  0\n");
+    result += sprintf(&PathText[result], "};\n");
     PathText[result] = 0;
     (void)fflush(stdout);
-}
-
-void ExportPaths()
-{
-    FILE* output = fopen("PATHS.BIN", "wb");
-    if (output != nullptr)
-    {
-        auto bytesWritten = fwrite(&num_paths, 2, 1, output);
-
-        unsigned short offset = 0xB000 + 2 + (num_paths * 2);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-        offset += sizeof(path0);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-        offset += sizeof(path1);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-        offset += sizeof(path2);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-        offset += sizeof(path3);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-        offset += sizeof(path4);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-
-        bytesWritten += fwrite(&path0, 1, sizeof(path0), output);
-        bytesWritten += fwrite(&path1, 1, sizeof(path1), output);
-        bytesWritten += fwrite(&path2, 1, sizeof(path2), output);
-        bytesWritten += fwrite(&path3, 1, sizeof(path3), output);
-        bytesWritten += fwrite(&path4, 1, sizeof(path4), output);
-        bytesWritten += fwrite(&path5, 1, sizeof(path5), output);
-
-        int result = fclose(output);
-        printf("Bytes Written: %zd  fclose result: %d \n", bytesWritten, result);
-    }
 }
 
 void SavePoints(const ImVector<ImVec2>& points, const char* filename)
@@ -286,6 +255,56 @@ void LoadPoints(ImVector<ImVec2>& points, const char* filename)
     points.resize(temp);
     fread(points.begin(), sizeof(float), temp * 2, f);
     fclose(f);
+}
+
+void FlipPointsX(ImVector<ImVec2>& points)
+{
+    float max_x = -99999.9f;
+    float min_x = 99999.9f;
+    for (auto& point : points)
+    {
+        if (point.x > max_x)
+        {
+            max_x = point.x;
+        }
+        if (point.x < min_x)
+        {
+            min_x = point.x;
+        }
+    }
+    for (auto& point : points)
+    {
+        point.x = (max_x - point.x) + min_x;
+    }
+}
+void FlipPointsY(ImVector<ImVec2>& points)
+{
+    float max_y = -99999.9f;
+    float min_y = 99999.9f;
+    for (auto& point : points)
+    {
+        if (point.y > max_y)
+        {
+            max_y = point.y;
+        }
+        if (point.y < min_y)
+        {
+            min_y = point.y;
+        }
+    }
+    for (auto& point : points)
+    {
+        point.y = (max_y - point.y) + min_y;
+    }
+}
+
+void MovePoints(ImVector<ImVec2>& points, const ImVec2& delta)
+{
+    for (auto& point : points)
+    {
+        point.x += delta.x;
+        point.y += delta.y;
+    }
 }
 
 // Main code
@@ -332,7 +351,7 @@ int main(int, char**)
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
     SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
-    SDL_Window* window = SDL_CreateWindow("Spline Path Generator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
+    SDL_Window* window = SDL_CreateWindow("Spline Path Generator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1920, 1080, window_flags);
     if (window == nullptr)
     {
         printf("Error: SDL_CreateWindow(): %s\n", SDL_GetError());
@@ -440,14 +459,14 @@ int main(int, char**)
 
         {
             static float MinDelta = 10.0;
-            int numPathPoints;
             int numCondensedPoints = 0;
             static ImVector<ImVec2> points;
+
             ImGui::Begin("Curve Params");
             ImGui::DragFloat("MinDelta", &MinDelta, 1.0f, 3.00f, 200.0f);
             if (points.size() > 3)
             {
-                numPathPoints = GeneratePath(points, points.size(), 0.0001f, MinDelta);
+                const int numPathPoints = GeneratePath(points, points.size(), 0.0001f, MinDelta);
                 ImGui::Text("num points: %d", numPathPoints);
                 numCondensedPoints = CondensePath(numPathPoints);
                 ImGui::Text("num condensed points: %d", numCondensedPoints);
@@ -536,8 +555,8 @@ int main(int, char**)
                     fileDialog = nullptr;
                 }
             }
-
             ImGui::End();
+
             ImGui::Begin("Canvas");
             static ImVec2 scrolling(0.0f, 0.0f);
             static bool opt_enable_grid = true;
@@ -545,6 +564,7 @@ int main(int, char**)
             static bool adding_line = false;
             static bool moving_point = false;
             static bool context_open = false;
+            static bool moving_points = false;
 
             // Using InvisibleButton() as a convenience 1) it will advance the layout cursor and 2) allows us to use IsItemHovered()/IsItemActive()
             ImVec2 canvas_p0 = ImGui::GetCursorScreenPos();      // ImDrawList API uses screen coordinates!
@@ -580,71 +600,86 @@ int main(int, char**)
                 }
             }
 
-            // Add first and second point
-            if (is_hovered && !adding_line && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            if (moving_points)
             {
-                if (hovered_point != -1)
+                MovePoints(points, io.MouseDelta);
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                 {
-                    moving_point = true;
+                    moving_points = false;
                 }
-                else
+            }
+            else
+            {
+                // Add first and second point
+                if (is_hovered && !adding_line && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                 {
-                    if (points.empty())
+                    if (hovered_point != -1)
                     {
-                        points.push_back(mouse_pos_in_canvas);
+                        moving_point = true;
                     }
-                    points.push_back(mouse_pos_in_canvas);
-                    adding_line = true;
+                    else
+                    {
+                        if (points.empty())
+                        {
+                            points.push_back(mouse_pos_in_canvas);
+                        }
+                        points.push_back(mouse_pos_in_canvas);
+                        adding_line = true;
+                    }
                 }
-            }
-            if (moving_point)
-            {
-                points[hovered_point] = mouse_pos_in_canvas;
-                if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                if (moving_point)
                 {
-                    moving_point = false;
+                    points[hovered_point] = mouse_pos_in_canvas;
+                    if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                    {
+                        moving_point = false;
+                    }
                 }
-            }
-            if (adding_line)
-            {
-                points.back() = mouse_pos_in_canvas;
-                if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
-                {
-                    adding_line = false;
-                }
-            }
-
-            // Pan (we use a zero mouse threshold when there's no context menu)
-            // You may decide to make that threshold dynamic based on whether the mouse is hovering something etc.
-            const float mouse_threshold_for_pan = opt_enable_context_menu ? -1.0f : 0.0f;
-            if (is_active && ImGui::IsMouseDragging(ImGuiMouseButton_Right, mouse_threshold_for_pan))
-            {
-                scrolling.x += io.MouseDelta.x;
-                scrolling.y += io.MouseDelta.y;
-            }
-
-            // Context menu (under default mouse threshold)
-            ImVec2 drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
-            if (opt_enable_context_menu && drag_delta.x == 0.0f && drag_delta.y == 0.0f)
-            {
-                ImGui::OpenPopupOnItemClick("context", ImGuiPopupFlags_MouseButtonRight);
-            }
-            if (ImGui::BeginPopup("context"))
-            {
-                context_open = true;
                 if (adding_line)
                 {
-                    points.resize(points.size() - 1);
+                    points.back() = mouse_pos_in_canvas;
+                    if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                    {
+                        adding_line = false;
+                    }
                 }
-                adding_line = false;
-                moving_point = false;
-                if (ImGui::MenuItem("Remove this", NULL, false, hovered_point != -1 && points.Size > hovered_point)) { points.erase(&points[hovered_point]); }
-                if (ImGui::MenuItem("Remove one", NULL, false, points.Size > 0)) { points.resize(points.size() - 1); }
-                if (ImGui::MenuItem("Remove all", NULL, false, points.Size > 0)) { points.clear(); }
-                ImGui::EndPopup();
-                if (ImGui::IsPopupOpen("context") == false)
+
+                // Pan (we use a zero mouse threshold when there's no context menu)
+                // You may decide to make that threshold dynamic based on whether the mouse is hovering something etc.
+                const float mouse_threshold_for_pan = opt_enable_context_menu ? -1.0f : 0.0f;
+                if (is_active && ImGui::IsMouseDragging(ImGuiMouseButton_Right, mouse_threshold_for_pan))
                 {
-                    context_open = false;
+                    scrolling.x += io.MouseDelta.x;
+                    scrolling.y += io.MouseDelta.y;
+                }
+
+                // Context menu (under default mouse threshold)
+                ImVec2 drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
+                if (opt_enable_context_menu && drag_delta.x == 0.0f && drag_delta.y == 0.0f)
+                {
+                    ImGui::OpenPopupOnItemClick("context", ImGuiPopupFlags_MouseButtonRight);
+                }
+                if (ImGui::BeginPopup("context"))
+                {
+                    context_open = true;
+                    if (adding_line)
+                    {
+                        points.resize(points.size() - 1);
+                    }
+                    adding_line = false;
+                    moving_point = false;
+                    if (ImGui::MenuItem("Remove this", NULL, false, hovered_point != -1 && points.Size > hovered_point)) { points.erase(&points[hovered_point]); }
+                    if (ImGui::MenuItem("Remove one", NULL, false, points.Size > 0)) { points.resize(points.size() - 1); }
+                    if (ImGui::MenuItem("Remove all", NULL, false, points.Size > 0)) { points.clear(); scrolling.x = 0; scrolling.y = 0; }
+                    if (ImGui::MenuItem("Reverse points array", NULL, false, points.Size > 0)) { std::ranges::reverse(points); scrolling.x = 0; scrolling.y = 0; }
+                    if (ImGui::MenuItem("Flip X", NULL, false, points.Size > 0)) { FlipPointsX(points); scrolling.x = 0; scrolling.y = 0; }
+                    if (ImGui::MenuItem("Flip Y", NULL, false, points.Size > 0)) { FlipPointsY(points); scrolling.x = 0; scrolling.y = 0; }
+                    if (ImGui::MenuItem("Move Spline", NULL, false, points.Size > 0)) { moving_points = true; }
+                    ImGui::EndPopup();
+                    if (ImGui::IsPopupOpen("context") == false)
+                    {
+                        context_open = false;
+                    }
                 }
             }
 
