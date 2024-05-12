@@ -526,7 +526,7 @@ int main(int, char**)
                     fileDialog = new ImGui::FileBrowser(bLoad ? ImGuiFileBrowserFlags_EnterNewFilename : ImGuiFileBrowserFlags_EnterNewFilename | ImGuiFileBrowserFlags_CreateNewDir);
     
                     // (optional) set browser properties
-                    fileDialog->SetTitle(bLoad ? "Load" : "Save");
+                    fileDialog->SetTitle(bLoad ? "Load Spline" : "Save Spline");
                     fileDialog->SetTypeFilters({ ".spg" });
                     fileDialog->Open();
                 }
