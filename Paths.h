@@ -189,7 +189,111 @@ char path5[] = {
     0,  0,   0,   0,  0
 };
 
-inline unsigned short num_paths = 6;
+char path6[46 * 5] =
+{
+    1,  1,   0,   5, 11,
+    1,  1,   0,   6, 11,
+    1,  2,   0,   5, 11,
+    1,  3,   0,   5, 12,
+    1, 45,  -1,   5, 12,
+    1,  5,   0,   5, 11,
+    1,  2,   0,   6, 11,
+    1,  1,   0,   5, 11,
+    1,  2,   0,   5, 10,
+    1,  2,   1,   5, 10,
+    1,  2,   2,   5,  9,
+    1,  1,   3,   5,  9,
+    1,  2,   3,   4,  8,
+    1,  3,   4,   4,  8,
+    1,  1,   4,   3,  7,
+    1,  1,   5,   2,  7,
+    1,  1,   5,   2,  6,
+    1,  2,   5,   1,  6,
+    1,  2,   5,   0,  5,
+    1,  2,   6,   0,  5,
+    1,  1,   5,   0,  5,
+    1,  1,   5,   0,  4,
+    1,  3,   5,  -1,  4,
+    1,  2,   5,  -2,  3,
+    1,  1,   4,  -3,  3,
+    1,  2,   4,  -3,  2,
+    1,  2,   4,  -4,  2,
+    1,  2,   3,  -4,  1,
+    1,  1,   3,  -5,  1,
+    1,  1,   2,  -5,  1,
+    1,  1,   2,  -5,  0,
+    1,  1,   1,  -5,  0,
+    1,  1,   0,  -5,  0,
+    1,  1,   0,  -5, 23,
+    1,  1,   0,  -5, 22,
+    1,  2,  -1,  -5, 22,
+    1,  1,  -2,  -5, 22,
+    1,  4,  -2,  -5, 21,
+    1,  2,  -2,  -5, 22,
+    1,  2,  -1,  -5, 22,
+    1,  2,   0,  -5, 23,
+    1,  4,   0,  -5,  0,
+    1,  5,   1,  -5,  0,
+    1,  1,   0,  -5,  0,
+    1,  1,   0,  -3,  0,
+    0,  0,   0,   0,  0
+};
+
+
+
+char path7[46 * 5] =
+{
+    1,  1,   0,   5, 11,
+    1,  1,   0,   6, 11,
+    1,  2,   0,   5, 11,
+    1,  3,   0,   5, 10,
+    1, 45,   1,   5, 10,
+    1,  5,   0,   5, 11,
+    1,  2,   0,   6, 11,
+    1,  1,   0,   5, 11,
+    1,  2,   0,   5, 12,
+    1,  2,  -1,   5, 12,
+    1,  2,  -2,   5, 13,
+    1,  1,  -3,   5, 13,
+    1,  2,  -3,   4, 14,
+    1,  3,  -4,   4, 14,
+    1,  1,  -4,   3, 15,
+    1,  1,  -5,   2, 15,
+    1,  1,  -5,   2, 16,
+    1,  2,  -5,   1, 16,
+    1,  2,  -5,   0, 17,
+    1,  2,  -6,   0, 17,
+    1,  1,  -5,   0, 17,
+    1,  1,  -5,   0, 18,
+    1,  3,  -5,  -1, 18,
+    1,  2,  -5,  -2, 19,
+    1,  1,  -4,  -3, 19,
+    1,  2,  -4,  -3, 20,
+    1,  2,  -4,  -4, 20,
+    1,  2,  -3,  -4, 21,
+    1,  1,  -3,  -5, 21,
+    1,  1,  -2,  -5, 21,
+    1,  1,  -2,  -5, 22,
+    1,  1,  -1,  -5, 22,
+    1,  1,   0,  -5, 23,
+    1,  2,   0,  -5,  0,
+    1,  2,   1,  -5,  0,
+    1,  1,   2,  -5,  0,
+    1,  4,   2,  -5,  1,
+    1,  2,   2,  -5,  0,
+    1,  2,   1,  -5,  0,
+    1,  2,   0,  -5,  0,
+    1,  2,   0,  -5, 23,
+    1,  2,   0,  -5, 22,
+    1,  5,  -1,  -5, 22,
+    1,  1,   0,  -5, 23,
+    1,  1,   0,  -3, 23,
+    0,  0,   0,   0,  0
+};
+
+
+
+inline unsigned short num_paths = 8;
 //char* paths[] = { &path2[0], &path3[0], &path1[0], &path4[0] };
 
 inline void ExportPaths()
@@ -211,6 +315,10 @@ inline void ExportPaths()
         bytesWritten += fwrite(&offset, 2, 1, output);
         offset += sizeof(path4);
         bytesWritten += fwrite(&offset, 2, 1, output);
+        offset += sizeof(path5);
+        bytesWritten += fwrite(&offset, 2, 1, output);
+        offset += sizeof(path6);
+        bytesWritten += fwrite(&offset, 2, 1, output);
 
         bytesWritten += fwrite(&path0, 1, sizeof(path0), output);
         bytesWritten += fwrite(&path1, 1, sizeof(path1), output);
@@ -218,6 +326,8 @@ inline void ExportPaths()
         bytesWritten += fwrite(&path3, 1, sizeof(path3), output);
         bytesWritten += fwrite(&path4, 1, sizeof(path4), output);
         bytesWritten += fwrite(&path5, 1, sizeof(path5), output);
+        bytesWritten += fwrite(&path6, 1, sizeof(path6), output);
+        bytesWritten += fwrite(&path7, 1, sizeof(path7), output);
 
         int result = fclose(output);
         printf("Bytes Written: %zd  fclose result: %d \n", bytesWritten, result);

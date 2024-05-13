@@ -219,7 +219,7 @@ char PathText[30 * 1000];
 void WritePath(int numCondensedPoints)
 {
 
-    int result = sprintf(PathText, "char path[%d] =\n{\n", numCondensedPoints);
+    int result = sprintf(PathText, "char path[%d * 5] =\n{\n", numCondensedPoints + 1);
     for (int i = 0; i < numCondensedPoints; i++)
     {
         result += sprintf(&PathText[result], "    %1d, %2d, %3d, %3d, %2d,\n", CondensedPath[i].command, CondensedPath[i].command_data, CondensedPath[i].deltaX, CondensedPath[i].deltaY, CondensedPath[i].rotation);
@@ -304,6 +304,15 @@ void MovePoints(ImVector<ImVec2>& points, const ImVec2& delta)
     {
         point.x += delta.x;
         point.y += delta.y;
+    }
+}
+
+void ScalePoints(ImVector<ImVec2>& points, const float ScaleFactor)
+{
+    for (auto& point : points)
+    {
+        point.x *= ScaleFactor;
+        point.y *= ScaleFactor;
     }
 }
 
@@ -458,12 +467,13 @@ int main(int, char**)
         }
 
         {
-            static float MinDelta = 10.0;
+            static float MinDelta = 10.0f;
+            static float ScaleFactor = 1.0f;
             int numCondensedPoints = 0;
             static ImVector<ImVec2> points;
 
             ImGui::Begin("Curve Params");
-            ImGui::DragFloat("MinDelta", &MinDelta, 1.0f, 3.00f, 200.0f);
+            ImGui::DragFloat("MinDelta", &MinDelta, 1.0f, 2.00f, 200.0f);
             if (points.size() > 3)
             {
                 const int numPathPoints = GeneratePath(points, points.size(), 0.0001f, MinDelta);
@@ -471,6 +481,7 @@ int main(int, char**)
                 numCondensedPoints = CondensePath(numPathPoints);
                 ImGui::Text("num condensed points: %d", numCondensedPoints);
             }
+            ImGui::DragFloat("Scale Factor", &ScaleFactor, 0.05f, 0.1f, 2.0f);
             static bool clicked = false;
             if (ImGui::Button("Write Path"))
             {
@@ -675,6 +686,7 @@ int main(int, char**)
                     if (ImGui::MenuItem("Flip X", NULL, false, points.Size > 0)) { FlipPointsX(points); scrolling.x = 0; scrolling.y = 0; }
                     if (ImGui::MenuItem("Flip Y", NULL, false, points.Size > 0)) { FlipPointsY(points); scrolling.x = 0; scrolling.y = 0; }
                     if (ImGui::MenuItem("Move Spline", NULL, false, points.Size > 0)) { moving_points = true; }
+                    if (ImGui::MenuItem("Scale Spline", NULL, false, points.Size > 0)) { ScalePoints(points, ScaleFactor); }
                     ImGui::EndPopup();
                     if (ImGui::IsPopupOpen("context") == false)
                     {
