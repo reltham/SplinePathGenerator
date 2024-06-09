@@ -380,7 +380,7 @@ inline void ExportPaths()
     {
         auto bytesWritten = fwrite(&num_paths, 2, 1, output);
 
-        unsigned short offset = 0xB000 + 2 + (num_paths * 2);
+        unsigned short offset = 0xB400 + 2 + (num_paths * 2);
         bytesWritten += fwrite(&offset, 2, 1, output);
         offset += sizeof(path0);
         bytesWritten += fwrite(&offset, 2, 1, output);
