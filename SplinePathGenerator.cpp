@@ -230,7 +230,7 @@ void WritePath(int numCondensedPoints)
     (void)fflush(stdout);
 }
 
-void SavePoints(const ImVector<ImVec2>& points, const char* filename)
+void SavePoints(const ImVector<ImVec2>& points, float MinDelta, const char* filename)
 {
     FILE *f = fopen(filename, "wb");
     if (!f)
@@ -239,10 +239,11 @@ void SavePoints(const ImVector<ImVec2>& points, const char* filename)
     }
     fwrite( &points.Size, sizeof(points.Size), 1, f);
     fwrite(points.begin(), sizeof(float), points.Size * 2, f);
+    fwrite(&MinDelta, sizeof(float), 1, f);
     fclose(f);
     
 }
-void LoadPoints(ImVector<ImVec2>& points, const char* filename)
+void LoadPoints(ImVector<ImVec2>& points, float& MinDelta, const char* filename)
 {
     FILE *f = fopen(filename, "rb");
     if (!f)
@@ -251,9 +252,9 @@ void LoadPoints(ImVector<ImVec2>& points, const char* filename)
     }
     int temp;
     fread( &temp, sizeof(int), 1, f);
-    //points.reserve_discard(temp);
     points.resize(temp);
     fread(points.begin(), sizeof(float), temp * 2, f);
+    fread(&MinDelta, sizeof(float), 1, f);
     fclose(f);
 }
 
@@ -549,11 +550,11 @@ int main(int, char**)
                     {
                         if (bLoad)
                         {
-                            LoadPoints(points, fileDialog->GetSelected().string().c_str());
+                            LoadPoints(points, MinDelta, fileDialog->GetSelected().string().c_str());
                         }
                         else
                         {
-                            SavePoints(points, fileDialog->GetSelected().string().c_str());
+                            SavePoints(points, MinDelta, fileDialog->GetSelected().string().c_str());
                         }
                         fileDialog->Close();
                     }
