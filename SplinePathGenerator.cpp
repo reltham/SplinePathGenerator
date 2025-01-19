@@ -229,20 +229,24 @@ char PathText[30 * 1000];
 void WritePath(int numCondensedPoints)
 {
 
-#if defined(ROTATE_360)  // rotation expands to 3 digits
+#if defined(ROTATE_360)  // rotation expands to 2 bytes
     int result = sprintf(PathText, "char path[%d * 6] =\n{\n", numCondensedPoints + 1);
 #else
     int result = sprintf(PathText, "char path[%d * 5] =\n{\n", numCondensedPoints + 1);
 #endif
     for (int i = 0; i < numCondensedPoints; i++)
     {
-#if defined(ROTATE_360)  // rotation expands to 3 digits
-        result += sprintf(&PathText[result], "    %1d, %2d, %3d, %3d, %3d,\n", CondensedPath[i].command, CondensedPath[i].command_data, CondensedPath[i].deltaX, CondensedPath[i].deltaY, CondensedPath[i].rotation);
+#if defined(ROTATE_360)  // rotation expands to 2 bytes
+        result += sprintf(&PathText[result], "    %1d, %2d, %3d, %3d, %2d, %2d\n", CondensedPath[i].command, CondensedPath[i].command_data, CondensedPath[i].deltaX, CondensedPath[i].deltaY, (CondensedPath[i].rotation & 255), (CondensedPath[i].rotation >> 8) & 255);
 #else
         result += sprintf(&PathText[result], "    %1d, %2d, %3d, %3d, %2d,\n", CondensedPath[i].command, CondensedPath[i].command_data, CondensedPath[i].deltaX, CondensedPath[i].deltaY, CondensedPath[i].rotation);
 #endif
     }
+#if defined(ROTATE_360)  // rotation expands to 2 bytes
+    result += sprintf(&PathText[result], "    0,  0,   0,   0,  0, 0\n");
+#else
     result += sprintf(&PathText[result], "    0,  0,   0,   0,  0\n");
+#endif
     result += sprintf(&PathText[result], "};\n");
     PathText[result] = 0;
     (void)fflush(stdout);
