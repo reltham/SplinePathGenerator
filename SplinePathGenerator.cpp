@@ -237,7 +237,7 @@ void WritePath(int numCondensedPoints)
     for (int i = 0; i < numCondensedPoints; i++)
     {
 #if defined(ROTATE_360)  // rotation expands to 2 bytes
-        result += sprintf(&PathText[result], "    %1d, %2d, %3d, %3d, %2d, %2d\n", CondensedPath[i].command, CondensedPath[i].command_data, CondensedPath[i].deltaX, CondensedPath[i].deltaY, (CondensedPath[i].rotation & 255), (CondensedPath[i].rotation >> 8) & 255);
+        result += sprintf(&PathText[result], "    %1d, %2d, %3d, %3d, %2d, %2d,\n", CondensedPath[i].command, CondensedPath[i].command_data, CondensedPath[i].deltaX, CondensedPath[i].deltaY, (CondensedPath[i].rotation & 255), (CondensedPath[i].rotation >> 8) & 255);
 #else
         result += sprintf(&PathText[result], "    %1d, %2d, %3d, %3d, %2d,\n", CondensedPath[i].command, CondensedPath[i].command_data, CondensedPath[i].deltaX, CondensedPath[i].deltaY, CondensedPath[i].rotation);
 #endif
