@@ -156,7 +156,7 @@ int GeneratePath(ImVector<ImVec2>& points, const int numPoints, const float Step
                     UseTangent = PathTangent;
                 }
 #if defined(ROTATE_360)  // set the direction in degrees  0-359 
-                PathDirection = static_cast<float>(atan2f(UseTangent.y, UseTangent.x) * (180.0f / M_PI)); // PathDirection in Degrees 0 - 359
+                PathDirection = 90 - static_cast<float>(atan2f(UseTangent.y, UseTangent.x) * (180.0f / M_PI)); // PathDirection in Degrees 0 - 359 ... North 0 positive clockwise
                 if (PathDirection < 0.0f)  // convert any negative degrees into positive degrees
                 {
                     PathDirection += 360.0f;
