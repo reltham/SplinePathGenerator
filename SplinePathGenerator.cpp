@@ -11,7 +11,11 @@
 #include <SDL_opengl.h>
 #endif
 
-//#define _CRT_SECURE_NO_WARNINGS    
+//#define _CRT_SECURE_NO_WARNINGS  
+// #define ROTATE_360       // change path rotation from 0-23 into 0-359
+#if defined(ROTATE_360) 
+#include <cmath> 
+#endif
 #include <corecrt_math.h>
 
 #include "imgui_internal.h"
@@ -151,7 +155,13 @@ int GeneratePath(ImVector<ImVec2>& points, const int numPoints, const float Step
                     UsePoint = CurrentPoint;
                     UseTangent = PathTangent;
                 }
-
+#if defined(ROTATE_360)  // set the direction in degrees  0-359 
+                PathDirection = 90 - static_cast<float>(atan2f(UseTangent.y, UseTangent.x) * (180.0f / M_PI)); // PathDirection in Degrees 0 - 359 ... North 0 positive clockwise
+                if (PathDirection < 0.0f)  // convert any negative degrees into positive degrees
+                {
+                    PathDirection += 360.0f;
+                }
+#else
                 PathDirection = atan2f(UseTangent.y, UseTangent.x);
                 PathDirection *= 3.8197186f;
                 PathDirection += 6.0f;
@@ -163,7 +173,7 @@ int GeneratePath(ImVector<ImVec2>& points, const int numPoints, const float Step
                 {
                     PathDirection -= 24.0f;
                 }
-
+#endif
                 if (n < 5000)
                 {
                     Path[n++] = {1, 1, static_cast<int>(TotalDelta.x), static_cast<int>(TotalDelta.y), (static_cast<int>(PathDirection - 0.5f)),
@@ -219,15 +229,50 @@ char PathText[30 * 1000];
 void WritePath(int numCondensedPoints)
 {
 
+#if defined(ROTATE_360)  // rotation expands to 2 bytes
+    int result = sprintf(PathText, "char path[%d * 6] =\n{\n", numCondensedPoints + 1);
+#else
     int result = sprintf(PathText, "char path[%d * 5] =\n{\n", numCondensedPoints + 1);
+#endif
     for (int i = 0; i < numCondensedPoints; i++)
     {
+#if defined(ROTATE_360)  // rotation expands to 2 bytes
+        result += sprintf(&PathText[result], "    %1d, %2d, %3d, %3d, %2d, %2d,\n", CondensedPath[i].command, CondensedPath[i].command_data, CondensedPath[i].deltaX, CondensedPath[i].deltaY, (CondensedPath[i].rotation & 255), (CondensedPath[i].rotation >> 8) & 255);
+#else
         result += sprintf(&PathText[result], "    %1d, %2d, %3d, %3d, %2d,\n", CondensedPath[i].command, CondensedPath[i].command_data, CondensedPath[i].deltaX, CondensedPath[i].deltaY, CondensedPath[i].rotation);
+#endif
     }
+#if defined(ROTATE_360)  // rotation expands to 2 bytes
+    result += sprintf(&PathText[result], "    0,  0,   0,   0,  0, 0\n");
+#else
     result += sprintf(&PathText[result], "    0,  0,   0,   0,  0\n");
+#endif
     result += sprintf(&PathText[result], "};\n");
     PathText[result] = 0;
     (void)fflush(stdout);
+}
+
+void Export360Path(int numCondensedPoints)
+{
+    FILE* output = fopen("PATH-360.BIN", "wb");
+    if (output != nullptr)
+    {
+        auto bytesWritten = fwrite(&numCondensedPoints, 1, 2, output);
+        for (int i = 0; i < numCondensedPoints; i++)
+        {
+            bytesWritten += fwrite(&CondensedPath[i].command, 1, 1, output);
+            bytesWritten += fwrite(&CondensedPath[i].command_data, 1, 1, output);
+            bytesWritten += fwrite(&CondensedPath[i].deltaX, 1, 1, output);
+            bytesWritten += fwrite(&CondensedPath[i].deltaY, 1, 1, output);
+            bytesWritten += fwrite(&CondensedPath[i].rotation, 1, 2, output);
+        }
+        __int32 zip = 0;
+        bytesWritten += fwrite(&zip, 1, 4, output);  // command 0, command_data 0, deltaX 0, deltaY 0
+        bytesWritten += fwrite(&zip, 1, 2, output);  // rotation 0
+
+        int result = fclose(output);
+        printf("Bytes Written: %zd  fclose result: %d \n", bytesWritten, result);
+    }
 }
 
 void SavePoints(const ImVector<ImVec2>& points, float MinDelta, const char* filename)
@@ -495,13 +540,21 @@ int main(int, char**)
             }
             ImGui::SameLine();
             static bool clicked2 = false;
+#if defined(ROTATE_360)
+            if (ImGui::Button("Export PATH-360.BIN"))
+#else
             if (ImGui::Button("Export PATHS.BIN"))
+#endif
             {
                 clicked2 = true;
             }
             if (clicked2 == true)
             {
+#if defined(ROTATE_360)
+                Export360Path(numCondensedPoints);
+#else
                 ExportPaths();
+#endif
                 clicked2 = false;
             }
 
