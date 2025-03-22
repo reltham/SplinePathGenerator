@@ -18,6 +18,8 @@
 #endif
 #include <corecrt_math.h>
 
+#include <algorithm>
+
 #include "imgui_internal.h"
 #include "Paths.h"
 #include "imfilebrowser.h"
@@ -271,7 +273,7 @@ void Export360Path(int numCondensedPoints)
         bytesWritten += fwrite(&zip, 1, 2, output);  // rotation 0
 
         int result = fclose(output);
-        printf("Bytes Written: %zd  fclose result: %d \n", bytesWritten, result);
+        printf("Bytes Written: %zu  fclose result: %d \n", bytesWritten, result);
     }
 }
 
@@ -309,14 +311,8 @@ void FlipPointsX(ImVector<ImVec2>& points)
     float min_x = 99999.9f;
     for (auto& point : points)
     {
-        if (point.x > max_x)
-        {
-            max_x = point.x;
-        }
-        if (point.x < min_x)
-        {
-            min_x = point.x;
-        }
+        max_x = std::max(point.x, max_x);
+        min_x = std::min(point.x, min_x);
     }
     for (auto& point : points)
     {
@@ -329,14 +325,8 @@ void FlipPointsY(ImVector<ImVec2>& points)
     float min_y = 99999.9f;
     for (auto& point : points)
     {
-        if (point.y > max_y)
-        {
-            max_y = point.y;
-        }
-        if (point.y < min_y)
-        {
-            min_y = point.y;
-        }
+        max_y = std::max(point.y, max_y);
+        min_y = std::min(point.y, min_y);
     }
     for (auto& point : points)
     {
@@ -424,7 +414,7 @@ int main(int, char**)
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
-    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
+    //io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
     //io.ConfigViewportsNoAutoMerge = true;
     //io.ConfigViewportsNoTaskBarIcon = true;
 
@@ -500,24 +490,38 @@ int main(int, char**)
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
 
-        // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-        if (show_demo_window)
-        {
-            ImGui::ShowDemoWindow(&show_demo_window);
-        }
+        // create an ImGui window that covers the entire viewport, so that we can have a menu bar at the top of the applications
+        int width, height;
+        SDL_GetWindowSize(window, &width, &height);
+        //int posx, posy;
+        //SDL_GetWindowPosition(window, &posx, &posy);
+        ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(width+2, height+2), ImGuiCond_Always);        
 
-        {
-            ImGui::Begin("Path");
-            ImGui::InputTextMultiline("Path", PathText, IM_ARRAYSIZE(PathText), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 100), ImGuiInputTextFlags_ReadOnly);
-            ImGui::End();
-        }
+        ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoBringToFrontOnFocus |                 // we just want to use this window as a host for the menubar and docking
+            ImGuiWindowFlags_NoNavFocus |                                                      // so turn off everything that would make it act like a window
+            ImGuiWindowFlags_NoDocking |
+            ImGuiWindowFlags_NoTitleBar |
+            ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_MenuBar |
+            ImGuiWindowFlags_NoBackground;                                                      // we want our game content to show through this window, so turn off the background.
 
-        {
-            static float MinDelta = 10.0f;
-            static float ScaleFactor = 1.0f;
-            int numCondensedPoints = 0;
-            static ImVector<ImVec2> points;
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));                          // we don't want any padding for windows docked to this window frame
 
+        bool show = (ImGui::Begin("Main", NULL, windowFlags));                                   // show the "window"
+        ImGui::PopStyleVar();                                                                    // restore the style so inner windows have fames
+
+        static float MinDelta = 10.0f;
+        static float ScaleFactor = 1.0f;
+        int numCondensedPoints = 0;
+        static ImVector<ImVec2> points;
+        
+        // create a docking space inside our inner window
+        ImGui::DockSpace(ImGui::GetID("Dockspace"), ImVec2(0.0f, 0.0f),  ImGuiDockNodeFlags_None);
+        if (show)
+        {
             ImGui::Begin("Curve Params");
             ImGui::DragFloat("MinDelta", &MinDelta, 1.0f, 2.00f, 200.0f);
             if (points.size() > 3)
@@ -528,60 +532,56 @@ int main(int, char**)
                 ImGui::Text("num condensed points: %d", numCondensedPoints);
             }
             ImGui::DragFloat("Scale Factor", &ScaleFactor, 0.05f, 0.1f, 2.0f);
-            static bool clicked = false;
-            if (ImGui::Button("Write Path"))
-            {
-                clicked = true;
-            }
-            if (clicked == true)
-            {
-                WritePath(numCondensedPoints);
-                clicked = false;
-            }
-            ImGui::SameLine();
-            static bool clicked2 = false;
-#if defined(ROTATE_360)
-            if (ImGui::Button("Export PATH-360.BIN"))
-#else
-            if (ImGui::Button("Export PATHS.BIN"))
-#endif
-            {
-                clicked2 = true;
-            }
-            if (clicked2 == true)
-            {
-#if defined(ROTATE_360)
-                Export360Path(numCondensedPoints);
-#else
-                ExportPaths();
-#endif
-                clicked2 = false;
-            }
+            ImGui::End();
+
+            ImGui::Begin("Path");
+            ImVec2 PathWindowSize = ImGui::GetWindowSize();
+            PathWindowSize.x -= 16;
+            PathWindowSize.y -= 36;
+            ImGui::InputTextMultiline("Path", PathText, IM_ARRAYSIZE(PathText), PathWindowSize, ImGuiInputTextFlags_ReadOnly);
+            ImGui::End();
+            WritePath(numCondensedPoints);
 
             static bool bLoad = false;
             static bool bSave = false;
-            static bool clicked3 = false;
-            if (ImGui::Button("Save Points"))
-            {
-                clicked3 = true;
-            }
-            if (clicked3 == true)
-            {
-                bSave = true;
-                clicked3 = false;
-            }
-            ImGui::SameLine();
-            static bool clicked4 = false;
-            if (ImGui::Button("Load Points"))
-            {
-                clicked4 = true;
-            }
-            if (clicked4 == true)
-            {
-                bLoad = true;
-                clicked4 = false;
-            }
 
+            // Do a menu bar with an exit menu
+            if (ImGui::BeginMenuBar())
+            {
+                if (ImGui::BeginMenu("File"))
+                {
+                    if (ImGui::MenuItem("Load Points"))
+                    {
+                        bLoad = true;
+                    }
+                    if (ImGui::MenuItem("Save Points"))
+                    {
+                        bSave = true;
+                    }
+                    if (ImGui::MenuItem("Exit"))
+                    {
+                        done = true;
+                    }
+                    ImGui::EndMenu();
+                }
+                if (ImGui::BeginMenu("Export"))
+                {
+#if defined(ROTATE_360)
+                    if (ImGui::MenuItem("PATH-360.BIN"))
+#else
+                    if (ImGui::MenuItem("PATHS.BIN"))
+#endif
+                    {
+#if defined(ROTATE_360)
+                        Export360Path(numCondensedPoints);
+#else
+                        ExportPaths();
+#endif
+                    }
+                    ImGui::EndMenu();
+                }
+                ImGui::EndMenuBar();
+            }
             static ImGui::FileBrowser* fileDialog = nullptr;
             if (bLoad || bSave)
             {
@@ -589,7 +589,7 @@ int main(int, char**)
                 {
                     // create a file browser instance
                     fileDialog = new ImGui::FileBrowser(bLoad ? ImGuiFileBrowserFlags_EnterNewFilename : ImGuiFileBrowserFlags_EnterNewFilename | ImGuiFileBrowserFlags_CreateNewDir);
-    
+            
                     // (optional) set browser properties
                     fileDialog->SetTitle(bLoad ? "Load Spline" : "Save Spline");
                     fileDialog->SetTypeFilters({ ".spg" });
@@ -620,8 +620,10 @@ int main(int, char**)
                     fileDialog = nullptr;
                 }
             }
-            ImGui::End();
+        }
+        ImGui::End();
 
+        {
             ImGui::Begin("Canvas");
             static ImVec2 scrolling(0.0f, 0.0f);
             static bool opt_enable_grid = true;
