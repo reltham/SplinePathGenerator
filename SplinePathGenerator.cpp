@@ -12,7 +12,7 @@
 #endif
 
 //#define _CRT_SECURE_NO_WARNINGS  
-// #define ROTATE_360       // change path rotation from 0-23 into 0-359
+//#define ROTATE_360       // change path rotation from 0-23 into 0-359
 #if defined(ROTATE_360) 
 #include <cmath> 
 #endif
@@ -305,6 +305,32 @@ void LoadPoints(ImVector<ImVec2>& points, float& MinDelta, const char* filename)
     fclose(f);
 }
 
+void SaveProject(const ImVector<char[MAX_PATH]>& projectFiles, const char* filename)
+{
+    FILE *f = fopen(filename, "wb");
+    if (!f)
+    {
+        return;
+    }
+    fwrite( &projectFiles.Size, sizeof(projectFiles.Size), 1, f);
+    fwrite(projectFiles.begin(), sizeof(char[MAX_PATH]), projectFiles.Size, f);
+    fclose(f);
+    
+}
+void LoadProject(ImVector<char[MAX_PATH]>& projectFiles, const char* filename)
+{
+    FILE *f = fopen(filename, "rb");
+    if (!f)
+    {
+        return;
+    }
+    int temp;
+    fread( &temp, sizeof(int), 1, f);
+    projectFiles.resize(temp);
+    fread(projectFiles.begin(), sizeof(char[MAX_PATH]), temp, f);
+    fclose(f);
+}
+
 void FlipPointsX(ImVector<ImVec2>& points)
 {
     float max_x = -99999.9f;
@@ -455,6 +481,8 @@ int main(int, char**)
     bool show_demo_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+    ImVector<char[MAX_PATH]> files;
+    
     // Main loop
     bool done = false;
 #ifdef __EMSCRIPTEN__
@@ -493,8 +521,6 @@ int main(int, char**)
         // create an ImGui window that covers the entire viewport, so that we can have a menu bar at the top of the applications
         int width, height;
         SDL_GetWindowSize(window, &width, &height);
-        //int posx, posy;
-        //SDL_GetWindowPosition(window, &posx, &posy);
         ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
         ImGui::SetNextWindowSize(ImVec2(width+2, height+2), ImGuiCond_Always);        
 
@@ -524,6 +550,7 @@ int main(int, char**)
         {
             ImGui::Begin("Curve Params");
             ImGui::DragFloat("MinDelta", &MinDelta, 1.0f, 2.00f, 200.0f);
+            ImGui::DragFloat("Scale Factor", &ScaleFactor, 0.05f, 0.1f, 2.0f);
             if (points.size() > 3)
             {
                 const int numPathPoints = GeneratePath(points, points.size(), 0.0001f, MinDelta);
@@ -531,7 +558,6 @@ int main(int, char**)
                 numCondensedPoints = CondensePath(numPathPoints);
                 ImGui::Text("num condensed points: %d", numCondensedPoints);
             }
-            ImGui::DragFloat("Scale Factor", &ScaleFactor, 0.05f, 0.1f, 2.0f);
             ImGui::End();
 
             ImGui::Begin("Path");
@@ -542,8 +568,67 @@ int main(int, char**)
             ImGui::End();
             WritePath(numCondensedPoints);
 
+#if !defined(ROTATE_360)
+            static int item_selected_idx = -1; // Here we store our selected data as an index.
+            int item_highlighted_idx = -1; // Here we store our highlighted data as an index.
+            ImGui::Begin("Project");
+            ImVec2 ProjectWindowSize = ImGui::GetWindowSize();
+            ProjectWindowSize.x -= 16;
+            ProjectWindowSize.y -= 36;
+            ImGui::BeginListBox("Files", ProjectWindowSize);
+            for (int n = 0; n < files.size(); n++)
+            {
+                const bool is_selected = (item_selected_idx == n);
+                if (ImGui::Selectable(files[n], is_selected))
+                {
+                    item_selected_idx = n;
+                    LoadPoints(points, MinDelta, files[n]);
+                }
+
+                if (ImGui::IsItemHovered())
+                {
+                    item_highlighted_idx = n;
+                }
+
+                // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+                if (is_selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+
+                if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+                {
+                    // Set payload to carry the index of our item (could be anything)
+                    ImGui::SetDragDropPayload("DND_DEMO_CELL", &n, sizeof(int));
+
+                    // Display preview (could be anything, e.g. when dragging an image we could decide to display
+                    // the filename and a small preview of the image, etc.)
+                    ImGui::EndDragDropSource();
+                }
+                if (ImGui::BeginDragDropTarget())
+                {
+                    if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DND_DEMO_CELL"))
+                    {
+                        IM_ASSERT(payload->DataSize == sizeof(int));
+                        int payload_n = *(const int*)payload->Data;
+                        char tmp[MAX_PATH];
+                        strcpy(tmp, files[payload_n]);
+                        auto tmp2 = files.find(files[n]);
+                        files.find_erase(files[payload_n]);
+                        files.insert(tmp2, tmp);
+                    }
+                    ImGui::EndDragDropTarget();
+                }
+
+            }        
+            ImGui::EndListBox();
+            ImGui::End();
+#endif
             static bool bLoad = false;
             static bool bSave = false;
+            static bool bLoadProject = false;
+            static bool bSaveProject = false;
+            static bool bAddToProject = false;
 
             // Do a menu bar with an exit menu
             if (ImGui::BeginMenuBar())
@@ -564,6 +649,34 @@ int main(int, char**)
                     }
                     ImGui::EndMenu();
                 }
+
+#if !defined(ROTATE_360)
+                if (ImGui::BeginMenu("Project"))
+                {
+                    if (ImGui::MenuItem("Load Project"))
+                    {
+                        bLoadProject = true;
+                    }
+                    if (ImGui::MenuItem("Save Project"))
+                    {
+                        bSaveProject = true;
+                    }
+                    if (ImGui::MenuItem("Add Spline"))
+                    {
+                        bAddToProject = true;
+                    }
+                    if (ImGui::MenuItem("Remove Spline"))
+                    {
+                        // remove selected file from project
+                        if (item_selected_idx != -1)
+                        {
+                            files.find_erase(files[item_selected_idx]);
+                            points.clear();
+                        }
+                    }
+                    ImGui::EndMenu();
+                }
+#endif                
                 if (ImGui::BeginMenu("Export"))
                 {
 #if defined(ROTATE_360)
@@ -582,16 +695,17 @@ int main(int, char**)
                 }
                 ImGui::EndMenuBar();
             }
+
             static ImGui::FileBrowser* fileDialog = nullptr;
-            if (bLoad || bSave)
+            if (bLoad || bSave || bAddToProject)
             {
                 if (fileDialog == nullptr)
                 {
                     // create a file browser instance
-                    fileDialog = new ImGui::FileBrowser(bLoad ? ImGuiFileBrowserFlags_EnterNewFilename : ImGuiFileBrowserFlags_EnterNewFilename | ImGuiFileBrowserFlags_CreateNewDir);
+                    fileDialog = new ImGui::FileBrowser((bLoad || bAddToProject) ? ImGuiFileBrowserFlags_EnterNewFilename : ImGuiFileBrowserFlags_EnterNewFilename | ImGuiFileBrowserFlags_CreateNewDir);
             
                     // (optional) set browser properties
-                    fileDialog->SetTitle(bLoad ? "Load Spline" : "Save Spline");
+                    fileDialog->SetTitle(bAddToProject ? "Add Spline to Project" : bLoad ? "Load Spline" : "Save Spline");
                     fileDialog->SetTypeFilters({ ".spg" });
                     fileDialog->Open();
                 }
@@ -605,9 +719,15 @@ int main(int, char**)
                         {
                             LoadPoints(points, MinDelta, fileDialog->GetSelected().string().c_str());
                         }
-                        else
+                        else if (bSave)
                         {
                             SavePoints(points, MinDelta, fileDialog->GetSelected().string().c_str());
+                        }
+                        else if (bAddToProject)
+                        {
+                            char temp[MAX_PATH];
+                            strcpy(temp, fileDialog->GetSelected().string().c_str());
+                            files.push_back(temp);
                         }
                         fileDialog->Close();
                     }
@@ -615,13 +735,62 @@ int main(int, char**)
                 if (fileDialog->IsOpened() == false)
                 {
                     fileDialog->ClearSelected();
-                    bLoad = bSave = false;
+                    bLoad = bSave = bAddToProject = false;
                     delete(fileDialog);
                     fileDialog = nullptr;
                 }
             }
+            else if (bLoadProject || bSaveProject)
+            {
+                if (fileDialog == nullptr)
+                {
+                    // create a file browser instance
+                    fileDialog = new ImGui::FileBrowser(bLoadProject ? ImGuiFileBrowserFlags_EnterNewFilename : ImGuiFileBrowserFlags_EnterNewFilename | ImGuiFileBrowserFlags_CreateNewDir);
+            
+                    // (optional) set browser properties
+                    fileDialog->SetTitle(bLoad ? "Load Project" : "Save Project");
+                    fileDialog->SetTypeFilters({ ".prj" });
+                    fileDialog->Open();
+                }
+
+                if (fileDialog != nullptr)
+                {
+                    fileDialog->Display();
+                    if(fileDialog->HasSelected())
+                    {
+                        if (bLoadProject)
+                        {
+                            files.clear();
+                            LoadProject(files, fileDialog->GetSelected().string().c_str());
+                        }
+                        else if (bSaveProject)
+                        {
+                            auto temp = fileDialog->GetSelected().string();
+                            if (temp.ends_with(".prj") == false)
+                            {
+                                temp.append(".prj");
+                            }
+                            SaveProject(files, temp.c_str());
+                        }
+                        fileDialog->Close();
+                    }
+                }
+                if (fileDialog->IsOpened() == false)
+                {
+                    fileDialog->ClearSelected();
+                    bLoadProject = bSaveProject = false;
+                    delete(fileDialog);
+                    fileDialog = nullptr;
+                }
+                
+            }
         }
         ImGui::End();
+
+        if (show_demo_window)
+        {
+            ImGui::ShowDemoWindow(&show_demo_window);
+        }
 
         {
             ImGui::Begin("Canvas");
