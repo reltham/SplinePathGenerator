@@ -1,3 +1,4 @@
+// not used anymore, just keep for reference for now.
 
 char path0[17 * 5] =
 {
@@ -621,57 +622,3 @@ char path11[61 * 5] =
     1,  1,  -3,  -3, 21,
     0,  0,   0,   0,  0
 };
-
-
-inline unsigned short num_paths = 12;
-//char* paths[] = { &path2[0], &path3[0], &path1[0], &path4[0] };
-
-inline void ExportPaths()
-{
-    FILE* output = fopen("PATHS.BIN", "wb");
-    if (output != nullptr)
-    {
-        auto bytesWritten = fwrite(&num_paths, 2, 1, output);
-
-        unsigned short offset = 0xB400 + 2 + (num_paths * 2);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-        offset += sizeof(path0);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-        offset += sizeof(path1);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-        offset += sizeof(path2);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-        offset += sizeof(path3);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-        offset += sizeof(path4);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-        offset += sizeof(path5);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-        offset += sizeof(path6);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-        offset += sizeof(path7);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-        offset += sizeof(path8);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-        offset += sizeof(path9);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-        offset += sizeof(path10);
-        bytesWritten += fwrite(&offset, 2, 1, output);
-
-        bytesWritten += fwrite(&path0, 1, sizeof(path0), output);
-        bytesWritten += fwrite(&path1, 1, sizeof(path1), output);
-        bytesWritten += fwrite(&path2, 1, sizeof(path2), output);
-        bytesWritten += fwrite(&path3, 1, sizeof(path3), output);
-        bytesWritten += fwrite(&path4, 1, sizeof(path4), output);
-        bytesWritten += fwrite(&path5, 1, sizeof(path5), output);
-        bytesWritten += fwrite(&path6, 1, sizeof(path6), output);
-        bytesWritten += fwrite(&path7, 1, sizeof(path7), output);
-        bytesWritten += fwrite(&path8, 1, sizeof(path8), output);
-        bytesWritten += fwrite(&path9, 1, sizeof(path9), output);
-        bytesWritten += fwrite(&path10, 1, sizeof(path10), output);
-        bytesWritten += fwrite(&path11, 1, sizeof(path11), output);
-
-        int result = fclose(output);
-        printf("Bytes Written: %zd  fclose result: %d \n", bytesWritten, result);
-    }
-}

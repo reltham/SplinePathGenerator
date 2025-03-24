@@ -11,18 +11,18 @@
 #include <SDL_opengl.h>
 #endif
 
-//#define _CRT_SECURE_NO_WARNINGS  
-//#define ROTATE_360       // change path rotation from 0-23 into 0-359
+// #define ROTATE_360       // change path rotation from 0-23 into 0-359
 #if defined(ROTATE_360) 
 #include <cmath> 
 #endif
 #include <corecrt_math.h>
-
 #include <algorithm>
-
-#include "imgui_internal.h"
-#include "Paths.h"
 #include "imfilebrowser.h"
+
+// Visual Studio warnings
+#ifdef _MSC_VER
+#pragma warning (disable: 5056) // c++20 deprecated == of array types
+#endif
 
 struct Point
 {
@@ -232,32 +232,33 @@ void WritePath(int numCondensedPoints)
 {
 
 #if defined(ROTATE_360)  // rotation expands to 2 bytes
-    int result = sprintf(PathText, "char path[%d * 6] =\n{\n", numCondensedPoints + 1);
+    int result = sprintf_s(PathText, sizeof(PathText), "char path[%d * 6] =\n{\n", numCondensedPoints + 1);
 #else
-    int result = sprintf(PathText, "char path[%d * 5] =\n{\n", numCondensedPoints + 1);
+    int result = sprintf_s(PathText, sizeof(PathText), "char path[%d * 5] =\n{\n", numCondensedPoints + 1);
 #endif
     for (int i = 0; i < numCondensedPoints; i++)
     {
 #if defined(ROTATE_360)  // rotation expands to 2 bytes
-        result += sprintf(&PathText[result], "    %1d, %2d, %3d, %3d, %2d, %2d,\n", CondensedPath[i].command, CondensedPath[i].command_data, CondensedPath[i].deltaX, CondensedPath[i].deltaY, (CondensedPath[i].rotation & 255), (CondensedPath[i].rotation >> 8) & 255);
+        result += sprintf_s(&PathText[result], sizeof(PathText) - result, "    %1d, %2d, %3d, %3d, %2d, %2d,\n", CondensedPath[i].command, CondensedPath[i].command_data, CondensedPath[i].deltaX, CondensedPath[i].deltaY, (CondensedPath[i].rotation & 255), (CondensedPath[i].rotation >> 8) & 255);
 #else
-        result += sprintf(&PathText[result], "    %1d, %2d, %3d, %3d, %2d,\n", CondensedPath[i].command, CondensedPath[i].command_data, CondensedPath[i].deltaX, CondensedPath[i].deltaY, CondensedPath[i].rotation);
+        result += sprintf_s(&PathText[result], sizeof(PathText) - result, "    %1d, %2d, %3d, %3d, %2d,\n", CondensedPath[i].command, CondensedPath[i].command_data, CondensedPath[i].deltaX, CondensedPath[i].deltaY, CondensedPath[i].rotation);
 #endif
     }
 #if defined(ROTATE_360)  // rotation expands to 2 bytes
-    result += sprintf(&PathText[result], "    0,  0,   0,   0,  0, 0\n");
+    result += sprintf_s(&PathText[result], sizeof(PathText) - result, "    0,  0,   0,   0,  0, 0\n");
 #else
-    result += sprintf(&PathText[result], "    0,  0,   0,   0,  0\n");
+    result += sprintf_s(&PathText[result], sizeof(PathText) - result, "    0,  0,   0,   0,  0\n");
 #endif
-    result += sprintf(&PathText[result], "};\n");
+    result += sprintf_s(&PathText[result], sizeof(PathText) - result, "};\n");
     PathText[result] = 0;
     (void)fflush(stdout);
 }
 
 void Export360Path(int numCondensedPoints)
 {
-    FILE* output = fopen("PATH-360.BIN", "wb");
-    if (output != nullptr)
+    FILE* output;
+    errno_t error = fopen_s(&output, "PATH-360.BIN", "wb");
+    if (error == 0 && output != nullptr)
     {
         auto bytesWritten = fwrite(&numCondensedPoints, 1, 2, output);
         for (int i = 0; i < numCondensedPoints; i++)
@@ -279,56 +280,57 @@ void Export360Path(int numCondensedPoints)
 
 void SavePoints(const ImVector<ImVec2>& points, float MinDelta, const char* filename)
 {
-    FILE *f = fopen(filename, "wb");
-    if (!f)
+    FILE *output;
+    errno_t error = fopen_s(&output, filename, "wb");
+    if (error == 0 && output != nullptr)
     {
-        return;
+        fwrite( &points.Size, sizeof(points.Size), 1, output);
+        fwrite(points.begin(), sizeof(float), points.Size * 2, output);
+        fwrite(&MinDelta, sizeof(float), 1, output);
+        fclose(output);
     }
-    fwrite( &points.Size, sizeof(points.Size), 1, f);
-    fwrite(points.begin(), sizeof(float), points.Size * 2, f);
-    fwrite(&MinDelta, sizeof(float), 1, f);
-    fclose(f);
-    
 }
+
 void LoadPoints(ImVector<ImVec2>& points, float& MinDelta, const char* filename)
 {
-    FILE *f = fopen(filename, "rb");
-    if (!f)
+    FILE *input;
+    errno_t error = fopen_s(&input, filename, "rb");
+    if (error == 0 && input != nullptr)
     {
-        return;
+        int temp;
+        fread( &temp, sizeof(int), 1, input);
+        points.resize(temp);
+        fread(points.begin(), sizeof(float), temp * 2, input);
+        fread(&MinDelta, sizeof(float), 1, input);
+        fclose(input);
     }
-    int temp;
-    fread( &temp, sizeof(int), 1, f);
-    points.resize(temp);
-    fread(points.begin(), sizeof(float), temp * 2, f);
-    fread(&MinDelta, sizeof(float), 1, f);
-    fclose(f);
 }
 
 void SaveProject(const ImVector<char[MAX_PATH]>& projectFiles, const char* filename)
 {
-    FILE *f = fopen(filename, "wb");
-    if (!f)
+    FILE *output;
+    errno_t error = fopen_s(&output, filename, "wb");
+    if (error == 0 && output != nullptr)
     {
-        return;
+        int temp = projectFiles.Size;
+        fwrite( &temp, sizeof(int), 1, output);
+        fwrite(projectFiles.begin(), sizeof(char[MAX_PATH]), projectFiles.Size, output);
+        fclose(output);
     }
-    fwrite( &projectFiles.Size, sizeof(projectFiles.Size), 1, f);
-    fwrite(projectFiles.begin(), sizeof(char[MAX_PATH]), projectFiles.Size, f);
-    fclose(f);
     
 }
 void LoadProject(ImVector<char[MAX_PATH]>& projectFiles, const char* filename)
 {
-    FILE *f = fopen(filename, "rb");
-    if (!f)
+    FILE *input;
+    errno_t error = fopen_s(&input, filename, "rb");
+    if (error == 0 && input != nullptr)
     {
-        return;
+        int temp;
+        fread( &temp, sizeof(int), 1, input);
+        projectFiles.resize(temp);
+        fread(projectFiles.begin(), sizeof(char[MAX_PATH]), temp, input);
+        fclose(input);
     }
-    int temp;
-    fread( &temp, sizeof(int), 1, f);
-    projectFiles.resize(temp);
-    fread(projectFiles.begin(), sizeof(char[MAX_PATH]), temp, f);
-    fclose(f);
 }
 
 void FlipPointsX(ImVector<ImVec2>& points)
@@ -375,6 +377,57 @@ void ScalePoints(ImVector<ImVec2>& points, const float ScaleFactor)
     {
         point.x *= ScaleFactor;
         point.y *= ScaleFactor;
+    }
+}
+
+
+void ExportPaths(unsigned short memoryBase, const ImVector<char[MAX_PATH]>& files)
+{
+    ImVector<unsigned short> PathSizes;
+    ImVector<unsigned char> PathData;
+
+    float MinDelta = 10.0f;
+    ImVector<ImVec2> points;
+
+    // read in the paths, generate and condense them, and save the data in a buffers and the size 
+    int numPaths = files.size();
+    PathSizes.resize(numPaths);
+    for (int i = 0; i < numPaths; i++)
+    {
+        LoadPoints(points, MinDelta, files[i]);
+        if (points.size() > 3)
+        {
+            const int numPathPoints = GeneratePath(points, points.size(), 0.0001f, MinDelta);
+            int numCondensedPoints = CondensePath(numPathPoints) + 1;
+            for (int j = 0; j < numCondensedPoints; j++)
+            {
+                PathData.push_back((unsigned char)CondensedPath[j].command);
+                PathData.push_back((unsigned char)CondensedPath[j].command_data);
+                PathData.push_back((unsigned char)CondensedPath[j].deltaX);
+                PathData.push_back((unsigned char)CondensedPath[j].deltaY);
+                PathData.push_back((unsigned char)CondensedPath[j].rotation);
+            }
+            PathSizes[i] = (unsigned short)(numCondensedPoints * 5);
+        }
+    }
+
+    FILE* output;
+    errno_t error = fopen_s(&output, "PATHS.BIN", "wb");
+    if (error == 0 && output != nullptr)
+    {
+        auto bytesWritten = fwrite(&numPaths, 1, 2, output);
+
+        unsigned short offset = (unsigned short)(memoryBase + 2 + (numPaths * 2));
+        for (int i = 0; i < numPaths; i++)
+        {
+            bytesWritten += fwrite(&offset, 1, 2, output);
+            offset += PathSizes[i];
+        }
+
+        bytesWritten += fwrite(PathData.Data, 1, PathData.Size, output);
+
+        int result = fclose(output);
+        printf("Bytes Written: %zu  fclose result: %d \n", bytesWritten, result);
     }
 }
 
@@ -522,7 +575,7 @@ int main(int, char**)
         int width, height;
         SDL_GetWindowSize(window, &width, &height);
         ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(width+2, height+2), ImGuiCond_Always);        
+        ImGui::SetNextWindowSize(ImVec2((float)width + 2.0f, (float)height + 2.0f), ImGuiCond_Always);        
 
         ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoBringToFrontOnFocus |                 // we just want to use this window as a host for the menubar and docking
             ImGuiWindowFlags_NoNavFocus |                                                      // so turn off everything that would make it act like a window
@@ -599,7 +652,7 @@ int main(int, char**)
                 if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
                 {
                     // Set payload to carry the index of our item (could be anything)
-                    ImGui::SetDragDropPayload("DND_DEMO_CELL", &n, sizeof(int));
+                    ImGui::SetDragDropPayload("SPLINE_PATH_GENERATOR_PATH", &n, sizeof(int));
 
                     // Display preview (could be anything, e.g. when dragging an image we could decide to display
                     // the filename and a small preview of the image, etc.)
@@ -607,15 +660,15 @@ int main(int, char**)
                 }
                 if (ImGui::BeginDragDropTarget())
                 {
-                    if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DND_DEMO_CELL"))
+                    if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("SPLINE_PATH_GENERATOR_PATH"))
                     {
                         IM_ASSERT(payload->DataSize == sizeof(int));
                         int payload_n = *(const int*)payload->Data;
-                        char tmp[MAX_PATH];
-                        strcpy(tmp, files[payload_n]);
-                        auto tmp2 = files.find(files[n]);
+                        char temp[MAX_PATH];
+                        strcpy_s(temp, files[payload_n]);
+                        auto temp2 = files.find(files[n]);
                         files.find_erase(files[payload_n]);
-                        files.insert(tmp2, tmp);
+                        files.insert(temp2, temp);
                     }
                     ImGui::EndDragDropTarget();
                 }
@@ -688,7 +741,7 @@ int main(int, char**)
 #if defined(ROTATE_360)
                         Export360Path(numCondensedPoints);
 #else
-                        ExportPaths();
+                        ExportPaths(0xB400, files);
 #endif
                     }
                     ImGui::EndMenu();
@@ -726,7 +779,7 @@ int main(int, char**)
                         else if (bAddToProject)
                         {
                             char temp[MAX_PATH];
-                            strcpy(temp, fileDialog->GetSelected().string().c_str());
+                            strcpy_s(temp, fileDialog->GetSelected().string().c_str());
                             files.push_back(temp);
                         }
                         fileDialog->Close();
