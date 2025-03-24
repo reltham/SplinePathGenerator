@@ -4,7 +4,7 @@
  Use the mouse to place and move points. Initial two points are created by clicking and dragging, subsequent points are just a single click where you want it.
  Click and drag existing points to move them, and right click for a context menu to remove the hovered point, the last point or all points.
 
- ![image](https://github.com/reltham/SplinePathGenerator/assets/3689101/eed7c906-38f0-4f0e-b88b-82471cbf38cc)
+ ![image](docs/SplinePathGenerator.png)
  
  Paths consist of 5 values per entry.
 |command|command_data|deltaX|deltaY|rotation|description|
