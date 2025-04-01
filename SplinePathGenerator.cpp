@@ -628,53 +628,55 @@ int main(int, char**)
             ImVec2 ProjectWindowSize = ImGui::GetWindowSize();
             ProjectWindowSize.x -= 16;
             ProjectWindowSize.y -= 36;
-            ImGui::BeginListBox("Files", ProjectWindowSize);
-            for (int n = 0; n < files.size(); n++)
+            if (ImGui::BeginListBox("Files", ProjectWindowSize))
             {
-                const bool is_selected = (item_selected_idx == n);
-                if (ImGui::Selectable(files[n], is_selected))
+                for (int n = 0; n < files.size(); n++)
                 {
-                    item_selected_idx = n;
-                    LoadPoints(points, MinDelta, files[n]);
-                }
-
-                if (ImGui::IsItemHovered())
-                {
-                    item_highlighted_idx = n;
-                }
-
-                // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
-                if (is_selected)
-                {
-                    ImGui::SetItemDefaultFocus();
-                }
-
-                if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
-                {
-                    // Set payload to carry the index of our item (could be anything)
-                    ImGui::SetDragDropPayload("SPLINE_PATH_GENERATOR_PATH", &n, sizeof(int));
-
-                    // Display preview (could be anything, e.g. when dragging an image we could decide to display
-                    // the filename and a small preview of the image, etc.)
-                    ImGui::EndDragDropSource();
-                }
-                if (ImGui::BeginDragDropTarget())
-                {
-                    if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("SPLINE_PATH_GENERATOR_PATH"))
+                    const bool is_selected = (item_selected_idx == n);
+                    if (ImGui::Selectable(files[n], is_selected))
                     {
-                        IM_ASSERT(payload->DataSize == sizeof(int));
-                        int payload_n = *(const int*)payload->Data;
-                        char temp[MAX_PATH];
-                        strcpy_s(temp, files[payload_n]);
-                        auto temp2 = files.find(files[n]);
-                        files.find_erase(files[payload_n]);
-                        files.insert(temp2, temp);
+                        item_selected_idx = n;
+                        LoadPoints(points, MinDelta, files[n]);
                     }
-                    ImGui::EndDragDropTarget();
-                }
 
-            }        
-            ImGui::EndListBox();
+                    if (ImGui::IsItemHovered())
+                    {
+                        item_highlighted_idx = n;
+                    }
+
+                    // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+                    if (is_selected)
+                    {
+                        ImGui::SetItemDefaultFocus();
+                    }
+
+                    if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+                    {
+                        // Set payload to carry the index of our item (could be anything)
+                        ImGui::SetDragDropPayload("SPLINE_PATH_GENERATOR_PATH", &n, sizeof(int));
+
+                        // Display preview (could be anything, e.g. when dragging an image we could decide to display
+                        // the filename and a small preview of the image, etc.)
+                        ImGui::EndDragDropSource();
+                    }
+                    if (ImGui::BeginDragDropTarget())
+                    {
+                        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("SPLINE_PATH_GENERATOR_PATH"))
+                        {
+                            IM_ASSERT(payload->DataSize == sizeof(int));
+                            int payload_n = *(const int*)payload->Data;
+                            char temp[MAX_PATH];
+                            strcpy_s(temp, files[payload_n]);
+                            auto temp2 = files.find(files[n]);
+                            files.find_erase(files[payload_n]);
+                            files.insert(temp2, temp);
+                        }
+                        ImGui::EndDragDropTarget();
+                    }
+
+                }        
+                ImGui::EndListBox();
+            }
             ImGui::End();
 #endif
             static bool bLoad = false;
