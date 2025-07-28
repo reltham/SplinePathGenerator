@@ -743,7 +743,7 @@ int main(int, char**)
 #if defined(ROTATE_360)
                         Export360Path(numCondensedPoints);
 #else
-                        ExportPaths(0xB000, files);
+                        ExportPaths(0x7000, files);
 #endif
                     }
                     ImGui::EndMenu();
